@@ -30,7 +30,9 @@ def token_gradients(model, input_ids, input_slice, target_slice, loss_slice):
     torch.Tensor
         The gradients of each token in the input_slice with respect to the loss.
     """
-    embed_weights = model.gpt_neox.embed_in.weight
+    embed_weights = list(model.modules())[2]
+    assert type(embed_weights).__name__=='Embedding'
+    embed_weights = embed_weights.weight
     one_hot = torch.zeros(
         input_ids[input_slice].shape[0],
         embed_weights.shape[0],
