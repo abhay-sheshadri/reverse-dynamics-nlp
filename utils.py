@@ -72,6 +72,10 @@ def reverse_tokenize(tokenizer, target):
     return input_ids
 
 
+def reverse_output(output):
+    return torch.flip(output, (1,))
+
+
 def reverse_decode(tokenizer, output):
     tokens = torch.flip(output, (1,))
     return [
