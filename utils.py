@@ -5,6 +5,7 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           GPTNeoXForCausalLM)
 from transformers.generation.logits_process import (LogitsProcessor,
                                                     LogitsProcessorList)
+from datasets import load_dataset
 
 
 def token_gradients(model, input_ids, input_slice, target_slice, loss_slice):
@@ -106,3 +107,25 @@ class SampleTopTokens(LogitsProcessor):
         mask[:, self.top_grad_tokens[curr_pos]] = False
         scores.masked_fill_(mask, -float('inf'))
         return scores
+
+def get_token_probabilities(tokenizer, dataset="NeelNanda/pile-10k", vocab_size=50304):
+    data = load_dataset(dataset)
+    counts = torch.zeros(vocab_size, dtype=torch.float) #tokenizer.vocab_size is fake 50304 is the model output dimension which is what we care about
+
+    for chunk in data['train']:
+        # Extract text from chunk (assuming each chunk is a dictionary with a "text" key)
+        text = chunk['text']
+
+        # Tokenize the text
+        tokens = tokenizer(text, return_tensors="pt").input_ids[0]
+
+        # Count occurrences for each token
+        for tok in tokens:
+            counts[tok] += 1
+
+    # Normalize the counts to get probabilities
+    total_tokens = torch.sum(counts)
+    probabilities = counts / total_tokens
+    min_val = probabilities[probabilities > 0].min()
+    probabilities[probabilities == 0] = min_val
+    return probabilities
