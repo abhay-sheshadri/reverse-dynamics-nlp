@@ -49,13 +49,13 @@ class PromptOptimizer:
         input_slice,
         target_slice,
         loss_slice,
-        temperature = 0
+        temperature = None
     ):
         # Sample random proposals
         proposals = []
         if temperature:
-            logits = self.model(input_ids).logits
-            probs = SOFTMAX_FINAL(logits**temperature) #from utils
+            logits = self.model(input_ids.view(1, *input_ids.shape)).logits
+            probs = SOFTMAX_FINAL(logits/temperature) #from utils
         for p in range(self.n_proposals):
             if temperature:
                 token_pos = np.random.randint(input_slice.start, input_slice.stop)
