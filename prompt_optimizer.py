@@ -49,14 +49,22 @@ class PromptOptimizer:
         input_slice,
         target_slice,
         loss_slice,
+        temperature = 0
     ):
         # Sample random proposals
         proposals = []
+        if temperature:
+            logits = self.model(input_ids).logits
+            probs = SOFTMAX_FINAL(logits**temperature) #from utils
         for p in range(self.n_proposals):
-            rand_idx = np.random.randint(input_slice.start, input_slice.stop)
-            rand_token = np.random.choice(top_indices[rand_idx])
+            if temperature:
+                token_pos = np.random.randint(input_slice.start, input_slice.stop)
+                rand_token = torch.multinomial(probs[0, token_pos, :], 1).item()
+            else:
+                token_pos = np.random.randint(input_slice.start, input_slice.stop)
+                rand_token = np.random.choice(top_indices[token_pos])
             prop = input_ids.clone()
-            prop[rand_idx] = rand_token
+            prop[token_pos] = rand_token
             proposals.append(prop)
         return torch.stack(proposals)
 
@@ -64,7 +72,8 @@ class PromptOptimizer:
         self,
         initial_input,
         target_string,
-        use_prefix_loss=True
+        use_prefix_loss=True,
+        temperature=0,
     ):
         # Parse input strings into tokens
         initial_inputs = self.tokenizer.encode(initial_input, return_tensors="pt")[0].cuda()
@@ -81,7 +90,7 @@ class PromptOptimizer:
         for i in range(self.n_epochs):
             # Get proposals for next string
             top_indices = self.calculate_restricted_subset(input_ids, input_slice, target_slice, loss_slice)
-            proposals = self.sample_proposals(input_ids, top_indices, input_slice, target_slice, loss_slice)
+            proposals = self.sample_proposals(input_ids, top_indices, input_slice, target_slice, loss_slice, temperature=temperature)
             # Choose the proposal with the lowest loss
             with torch.no_grad():
                 prop_logits = self.model(proposals).logits

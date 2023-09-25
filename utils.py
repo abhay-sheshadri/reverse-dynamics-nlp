@@ -8,6 +8,7 @@ from transformers.generation.logits_process import (LogitsProcessor,
 from datasets import load_dataset
 
 
+SOFTMAX_FINAL = nn.Softmax(dim=-1)
 def token_gradients(model, input_ids, input_slice, target_slice, loss_slice):
 
     """
@@ -91,6 +92,14 @@ def reverse_generate(reverse_model, tokenizer, target, n_tokens):
         max_new_tokens=n_tokens,
         do_sample=False
     )
+    return reverse_decode(tokenizer, outputs)
+
+def reverse_normalized_forward(reverse_model, tokenizer, target, token_statistics_vector):
+    inputs = reverse_tokenize(tokenizer, target)
+    outputs = reverse_model(inputs).logits
+    outputs = SOFTMAX_FINAL(outputs)
+    outputs = torch.mul(outputs, token_statistics_vector)
+    outputs = torch.argmax(outputs, dim=-1)
     return reverse_decode(tokenizer, outputs)
 
 
