@@ -93,6 +93,7 @@ def reverse_normalized_forward(reverse_model, tokenizer, target, normalizer=None
         outputs = torch.mul(outputs, normalizer)
     return outputs
 
+
 def reverse_normalized_generate(reverse_model, tokenizer, target, max_length, normalizer=None, temperature=1):
     prefix = []
     for i in range(max_length):
@@ -108,6 +109,7 @@ def reverse_normalized_generate(reverse_model, tokenizer, target, max_length, no
         prefix.append(token)
     return ''.join(prefix[::-1])+target
 
+
 class SampleTopTokens(LogitsProcessor):
 
     def __init__(self, n_initial_tokens, n_new_tokens, top_grad_tokens):
@@ -122,35 +124,58 @@ class SampleTopTokens(LogitsProcessor):
         scores.masked_fill_(mask, -float('inf'))
         return scores
 
-def get_token_probabilities(tokenizer, dataset="NeelNanda/pile-10k", vocab_size=50304):
-    data = load_dataset(dataset)
+
+def get_token_probabilities(tokenizer, dataset="NeelNanda/pile-10k", vocab_size=50304, split='train'):
+    if type(dataset)==str:
+        data = load_dataset(dataset)
+    else:
+        data = dataset
     counts = torch.zeros(vocab_size, dtype=torch.float) #tokenizer.vocab_size is fake 50304 is the model output dimension which is what we care about
 
-    for chunk in data['train']:
-        # Extract text from chunk (assuming each chunk is a dictionary with a "text" key)
+    for chunk in data[split]:
         text = chunk['text']
-
-        # Tokenize the text
         tokens = tokenizer(text, return_tensors="pt").input_ids[0]
+        token_counts = torch.bincount(tokens, minlength=counts.size(0))
+        counts += token_counts
 
-        # Count occurrences for each token
-        for tok in tokens:
-            counts[tok] += 1
-
-    # Normalize the counts to get probabilities
     total_tokens = torch.sum(counts)
     probabilities = counts / total_tokens
     min_val = probabilities[probabilities > 0].min()
     probabilities[probabilities == 0] = min_val
     return probabilities
 
+
+def get_pos_token_probabilities(tokenizer, dataset="NeelNanda/pile-10k", vocab_size=50304, split='train', prefix=10, prev_counts=None):
+    if type(dataset) == str:
+        data = load_dataset(dataset)
+    else:
+        data = dataset
+    if prev_counts is None:
+        counts = torch.zeros((vocab_size, prefix), dtype=torch.float)
+    else: 
+        counts = prev_counts
+    
+    token_to_string_rough_bound = 10*prefix
+    for chunk in data[split]:
+        text = chunk['text']
+        tokens = tokenizer(text[:token_to_string_rough_bound], return_tensors="pt").input_ids[0]
+        tokens = tokens[:prefix]
+        if len(tokens) < prefix:
+            tokens = tokenizer(text, return_tensors="pt").input_ids[0][:prefix]
+        for t,token in enumerate(tokens):
+            counts[token,t] += 1
+    return counts
+
+
 def start_chunk_hf(chunk, tokenizer, num_prefix_tokens=10, num_suffix_tokens=40):
     chunk = chunk['text']
     tokens = tokenizer(chunk[:200])['input_ids'] #drop first couple tokens given risk of incomplete token
     yield tokenizer.decode(tokens[:num_prefix_tokens]), tokenizer.decode(tokens[num_prefix_tokens:num_prefix_tokens+num_suffix_tokens])
 
+
 def rand_init(seq_length: int, tokenizer):
     return tokenizer.decode(torch.randint(0, tokenizer.vocab_size, (seq_length,)))
+
 
 def forward_loss(model, pair, tokenizer, loss=torch.nn.CrossEntropyLoss(),):
     prefix, suffix = pair
@@ -161,6 +186,7 @@ def forward_loss(model, pair, tokenizer, loss=torch.nn.CrossEntropyLoss(),):
     l_pref = loss(logs[0,:start_ind], whole_tensor[0,1:start_ind+1])
     l_suff = loss(logs[0,start_ind:-1], whole_tensor[0,start_ind+1:])
     return l_pref, l_suff
+
 
 def get_reverse_pair(dataset: Iterable[Any], chunk_func: Callable[..., Any], tokenizer: AutoTokenizer):
     for chunk in dataset:
