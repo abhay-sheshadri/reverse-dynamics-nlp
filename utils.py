@@ -6,7 +6,7 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
 from transformers.generation.logits_process import (LogitsProcessor,
                                                     LogitsProcessorList)
 from datasets import load_dataset
-
+from typing import Callable, Iterable, Any
 
 SOFTMAX_FINAL = nn.Softmax(dim=-1)
 def token_gradients(model, input_ids, input_slice, target_slice, loss_slice):
@@ -85,14 +85,15 @@ def reverse_decode(tokenizer, output):
     ]
 
 
-def reverse_normalized_forward(reverse_model, tokenizer, target, normalizer):
+def reverse_normalized_forward(reverse_model, tokenizer, target, normalizer=None):
     inputs = reverse_tokenize(tokenizer, target)
     outputs = reverse_model(inputs).logits[0,-1,:]
     outputs = SOFTMAX_FINAL(outputs).cpu()
-    outputs = torch.mul(outputs, normalizer)
+    if not normalizer is None:
+        outputs = torch.mul(outputs, normalizer)
     return outputs
 
-def reverse_normalized_generate(reverse_model, tokenizer, target, max_length, normalizer, temperature=1):
+def reverse_normalized_generate(reverse_model, tokenizer, target, max_length, normalizer=None, temperature=1):
     prefix = []
     for i in range(max_length):
         normalized_probs = reverse_normalized_forward(reverse_model, tokenizer, ''.join(prefix[::-1]) + target, normalizer)
@@ -151,7 +152,7 @@ def start_chunk_hf(chunk, tokenizer, num_prefix_tokens=10, num_suffix_tokens=40)
 def rand_init(seq_length: int, tokenizer):
     return tokenizer.decode(torch.randint(0, tokenizer.vocab_size, (seq_length,)))
 
-def forward_loss(model, pair, loss=torch.nn.CrossEntropyLoss(),):
+def forward_loss(model, pair, tokenizer, loss=torch.nn.CrossEntropyLoss(),):
     prefix, suffix = pair
     whole_tensor = tokenizer(prefix+suffix, return_tensors='pt').input_ids.cuda()
     with torch.no_grad():
@@ -160,3 +161,8 @@ def forward_loss(model, pair, loss=torch.nn.CrossEntropyLoss(),):
     l_pref = loss(logs[0,:start_ind], whole_tensor[0,1:start_ind+1])
     l_suff = loss(logs[0,start_ind:-1], whole_tensor[0,start_ind+1:])
     return l_pref, l_suff
+
+def get_reverse_pair(dataset: Iterable[Any], chunk_func: Callable[..., Any], tokenizer: AutoTokenizer):
+    for chunk in dataset:
+        for chunk in chunk_func(chunk, tokenizer):
+            yield chunk
