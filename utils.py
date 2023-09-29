@@ -199,8 +199,8 @@ def forward_loss(model, pair, tokenizer, loss=torch.nn.CrossEntropyLoss(),):
     with torch.no_grad():
         logs = model(whole_tensor).logits
     start_ind = len(tokenizer.encode(prefix))
-    l_pref = loss(logs[0,:start_ind], whole_tensor[0,1:start_ind+1])
-    l_suff = loss(logs[0,start_ind:-1], whole_tensor[0,start_ind+1:])
+    l_pref = loss(logs[0,:start_ind-1], whole_tensor[0,1:start_ind])
+    l_suff = loss(logs[0,start_ind-1:-1], whole_tensor[0,start_ind:])
     return l_pref, l_suff
 
 
@@ -273,9 +273,9 @@ def forward_loss_batch(model, pairs, tokenizer, loss=torch.nn.CrossEntropyLoss()
     start_indices = [len(tokenizer.encode(prefix)) for prefix in prefix_batch]
     l_pref_batch = []
     l_suff_batch = []
-    for i, (start_ind, whole_tensor_i, logs_i) in enumerate(zip(start_indices, whole_tensor, logs)):
-        l_pref = loss(logs_i[:start_ind], whole_tensor_i[1:start_ind + 1])
-        l_suff = loss(logs_i[start_ind:-1], whole_tensor_i[start_ind + 1:])
+    for (start_ind, whole_tensor_i, logs_i) in zip(start_indices, whole_tensor, logs):
+        l_pref = loss(logs_i[:start_ind-1], whole_tensor_i[1:start_ind])
+        l_suff = loss(logs_i[start_ind-1:-1], whole_tensor_i[start_ind:])
         l_pref_batch.append(l_pref)
         l_suff_batch.append(l_suff)
     return torch.stack(l_pref_batch), torch.stack(l_suff_batch)
