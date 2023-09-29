@@ -110,6 +110,31 @@ def reverse_normalized_generate(reverse_model, tokenizer, target, max_length, no
     return ''.join(prefix[::-1])+target
 
 
+def reverse_positional_forward(reverse_model, tokenizer, target, pos, normalizer=None):
+    inputs = reverse_tokenize(tokenizer, target)
+    outputs = reverse_model(inputs).logits[0,-1,:]
+    outputs = SOFTMAX_FINAL(outputs).cpu()
+    if not normalizer is None:
+        outputs = torch.mul(outputs, normalizer[:,pos])
+    return outputs
+
+
+def reverse_positional_generate(reverse_model, tokenizer, target, max_length, normalizer=None, temperature=1):
+    prefix = []
+    for i in range(max_length):
+        normalized_probs = reverse_positional_forward(reverse_model, tokenizer, ''.join(prefix[::-1]) + target, max_length-i-1, normalizer)
+        if not temperature:
+            token = tokenizer.decode(torch.argmax(normalized_probs))
+        else:
+            probs = torch.div(normalized_probs, temperature)
+            probs = torch.nn.Softmax(dim=-1)(probs)
+            token = tokenizer.decode(torch.multinomial(probs, num_samples=1))
+        if token == '[PAD]' or token == '[EOS]':
+            break
+        prefix.append(token)
+    return ''.join(prefix[::-1])+target
+
+
 class SampleTopTokens(LogitsProcessor):
 
     def __init__(self, n_initial_tokens, n_new_tokens, top_grad_tokens):
@@ -192,3 +217,23 @@ def get_reverse_pair(dataset: Iterable[Any], chunk_func: Callable[..., Any], tok
     for chunk in dataset:
         for chunk in chunk_func(chunk, tokenizer):
             yield chunk
+
+
+def get_pos_token_probabilities_pandas(tokenizer, dataset, vocab_size=50304, prefix=10, prev_counts=None):
+    if prev_counts is None:
+        counts = torch.zeros((vocab_size, prefix), dtype=torch.float)
+    else: 
+        counts = prev_counts
+    
+    token_to_string_rough_bound = 10*prefix
+    for chunk in dataset:
+        text = chunk[1] #1 is assumed to be first data column having text
+        tokens = tokenizer(text[:token_to_string_rough_bound], return_tensors="pt").input_ids[0]
+        tokens = tokens[:prefix]
+        if len(tokens) < prefix:
+            tokens = tokenizer(text, return_tensors="pt").input_ids[0][:prefix]
+            if len(tokens) < prefix:
+                continue
+        for t,token in enumerate(tokens):
+            counts[token,t] += 1
+    return counts
