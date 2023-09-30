@@ -7,6 +7,7 @@ from transformers.generation.logits_process import (LogitsProcessor,
                                                     LogitsProcessorList)
 from datasets import load_dataset
 from typing import Callable, Iterable, Any
+import matplotlib.pyplot as plt
 
 SOFTMAX_FINAL = nn.Softmax(dim=-1)
 def token_gradients(model, input_ids, input_slice, target_slice, loss_slice):
@@ -230,8 +231,39 @@ def get_pos_token_probabilities_pandas(tokenizer, dataset, vocab_size=50304, pre
     return counts
 
 
+def reverse_tokenize_batch(tokenizer, targets):
+    input_ids = tokenizer(targets, return_tensors="pt", padding=True, truncation=True).input_ids.cuda()
+    input_ids = torch.flip(input_ids, (1,))
+    return input_ids
+
+
+def forward_loss_batch(model, pairs, tokenizer, prefix_len=None, loss=torch.nn.CrossEntropyLoss()):
+    if type(pairs) == list:
+        prefix_batch, suffix_batch = zip(*pairs)
+        whole_text_batch = [prefix + suffix for prefix, suffix in zip(prefix_batch, suffix_batch)]
+        whole_tensor = tokenizer(whole_text_batch, return_tensors='pt', padding=True, truncation=True).input_ids.cuda()
+    else:
+        whole_tensor = pairs.cuda()
+    with torch.no_grad():
+        logs = model(whole_tensor).logits
+    if prefix_len is None:
+        start_indices = [len(tokenizer.encode(prefix)) for prefix in prefix_batch]
+    else:
+        start_indices = [prefix_len] * len(whole_tensor)
+    l_pref_batch = []
+    l_suff_batch = []
+    for (start_ind, whole_tensor_i, logs_i) in zip(start_indices, whole_tensor, logs):
+        l_pref = loss(logs_i[:start_ind-1], whole_tensor_i[1:start_ind]) #start_ind=1 case?
+        l_suff = loss(logs_i[start_ind-1:-1], whole_tensor_i[start_ind:])
+        l_pref_batch.append(l_pref)
+        l_suff_batch.append(l_suff)
+    return torch.stack(l_pref_batch), torch.stack(l_suff_batch)
+
 def reverse_positional_forward(reverse_model, tokenizer, targets, pos, normalizer=None):
-    inputs = reverse_tokenize_batch(tokenizer, targets)  # Assume this function can handle batched targets
+    if type(targets) == list:
+        inputs = reverse_tokenize_batch(tokenizer, targets)  # Assume this function can handle batched targets
+    else:
+        inputs = torch.flip(targets, (1,)).cuda()
     with torch.no_grad():
         outputs = reverse_model(inputs).logits[:, -1, :]  # Adjust indexing for batched outputs
     outputs = SOFTMAX_FINAL(outputs).cpu()
@@ -241,41 +273,83 @@ def reverse_positional_forward(reverse_model, tokenizer, targets, pos, normalize
 
 
 def reverse_normalized_beam_generate(reverse_model, tokenizer, target, max_length, beam_size=10, normalizer=None):
-    beams = [(0, '')]  # List of tuples of score and prefix
+    beams = [(1, torch.empty(0,))]  # List of tuples of score and prefix
+    target_tokens = tokenizer(target, return_tensors="pt",).input_ids[0]
     for i in range(max_length):
-        targets = [''.join(prefix) + target for score, prefix in beams]
+        targets = torch.stack([torch.cat((prefix,target_tokens)) for _, prefix in beams]).type(target_tokens.dtype).cuda()
         normalized_probs = reverse_positional_forward(reverse_model, tokenizer, targets, max_length-i-1, normalizer)
         candidates = []
         for j, (score, prefix) in enumerate(beams):
             probs, indices = torch.topk(normalized_probs[j], beam_size)  # Get top-k probabilities and indices for each beam
             for prob, idx in zip(probs, indices):  # No batch dimension here, handled in the outer loop
-                new_prefix = tokenizer.decode(idx.item()) + prefix
-                new_score = score + prob.item()
+                new_prefix = torch.cat((idx.view(1,),prefix))
+                new_score = score*prob.item()
                 candidates.append((new_score, new_prefix))
         # Sort candidates by score and keep the top-k
         candidates.sort(key=lambda x: x[0], reverse=True)
         beams = candidates[:beam_size]
-    return [b[1] for b in beams]
+    return [b[1].type(target_tokens.dtype) for b in beams]
 
 
-def reverse_tokenize_batch(tokenizer, targets):
-    input_ids = tokenizer(targets, return_tensors="pt", padding=True, truncation=True).input_ids.cuda()
-    input_ids = torch.flip(input_ids, (1,))
-    return input_ids
+def reverse_fwd_beam_generate(reverse_model, forward_model, tokenizer, target, max_length, beam_size=10, normalizer=None):
+    beams = [(1, torch.empty(0, dtype=torch.long))]  # List of tuples of score and prefix
+    target_tokens = tokenizer(target, return_tensors="pt").input_ids[0]  
+    for i in range(max_length):
+        targets = torch.stack([torch.cat((prefix, target_tokens)) for _, prefix in beams]).type(target_tokens.dtype)
+        normalized_probs = reverse_positional_forward(reverse_model, tokenizer, targets, max_length-i-1, normalizer).cpu()
+        candidates = []
+        for j, (_, prefix) in enumerate(beams):
+            _, indices = torch.topk(normalized_probs[j], beam_size)  # Get top-k probabilities and indices for each beam
+            for idx in indices:
+                new_prefix = torch.cat((idx.view(1,), prefix))
+                candidates.append(new_prefix)
+        
+        pairs_batch = torch.stack(candidates)
+        pairs_batch = torch.cat((pairs_batch, target_tokens.repeat(pairs_batch.shape[0],1)), dim=1)
+        
+        _, l_suff = forward_loss_batch(forward_model, pairs_batch, tokenizer, prefix_len=i+1)  # Assuming all prefixes have the same length
+        
+        # Update candidates with new scores based on forward model loss
+        candidates = [(l_suff[i].item(), candidates[i]) for i in range(len(candidates))]
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        beams = candidates[:beam_size]
+    
+    return [b[1].type(target_tokens.dtype) for b in beams]  # Returning tensors as in reverse_normalized_beam_generate
 
+def plot_beams(all_losses, all_naturals, beam_size, normalizer_temp, base_prefix_loss=None, base_suffix_loss=None):
+    eval_size = len(all_losses)
+    print(f'inverse dataset probs temp is {normalizer_temp}')
 
-def forward_loss_batch(model, pairs, tokenizer, loss=torch.nn.CrossEntropyLoss()):
-    prefix_batch, suffix_batch = zip(*pairs)
-    whole_text_batch = [prefix + suffix for prefix, suffix in zip(prefix_batch, suffix_batch)]
-    whole_tensor = tokenizer(whole_text_batch, return_tensors='pt', padding=True, truncation=True).input_ids.cuda()
-    with torch.no_grad():
-        logs = model(whole_tensor).logits
-    start_indices = [len(tokenizer.encode(prefix)) for prefix in prefix_batch]
-    l_pref_batch = []
-    l_suff_batch = []
-    for (start_ind, whole_tensor_i, logs_i) in zip(start_indices, whole_tensor, logs):
-        l_pref = loss(logs_i[:start_ind-1], whole_tensor_i[1:start_ind])
-        l_suff = loss(logs_i[start_ind-1:-1], whole_tensor_i[start_ind:])
-        l_pref_batch.append(l_pref)
-        l_suff_batch.append(l_suff)
-    return torch.stack(l_pref_batch), torch.stack(l_suff_batch)
+    prefix_loss_at_n, best_suffix_loss_at_n = [[loss[0]] for loss in all_naturals], [[loss[0]] for loss in all_losses]
+
+    # For each beam check iterate over all samples and check whether the loss on that beam+sample improved over previous best on that sample.
+    for n in range(beam_size):
+        if n == 0:
+            continue
+        for l,loss_list in enumerate(all_losses):
+            next_suffix_loss = loss_list[n]
+            if next_suffix_loss < best_suffix_loss_at_n[l][-1]:
+                best_suffix_loss_at_n[l].append(next_suffix_loss)
+                prefix_loss_at_n[l].append(all_naturals[l][n])
+            else:
+                best_suffix_loss_at_n[l].append(best_suffix_loss_at_n[l][-1])
+                prefix_loss_at_n[l].append(prefix_loss_at_n[l][-1])
+    
+    suffix_loss_mat = np.array(best_suffix_loss_at_n)
+    prefix_loss_mat = np.array(prefix_loss_at_n)
+    assert suffix_loss_mat.shape[0] == eval_size
+    mean_prefix_losses = np.mean(prefix_loss_mat, axis=0)
+    mean_suffix_losses = np.mean(suffix_loss_mat, axis=0)
+
+# Plotting
+    plt.figure()
+    plt.plot(mean_prefix_losses, mean_suffix_losses, marker='o', label='Best-of-N')
+    plt.plot([mean_prefix_losses[0]], [mean_suffix_losses[0]], marker='x', linestyle='', color='red', label='Greedy Prefix')
+    if base_prefix_loss is not None:
+        plt.plot([base_prefix_loss], [base_suffix_loss], marker='s', linestyle='', color='green', label='Dataset Prefix')
+    plt.xlabel(f'Forwards LM Prefix Loss')
+    plt.ylabel('Forwards LM Suffix Loss')
+    plt.title(f'Num beams varies from 1 to {beam_size}, mean over {eval_size} samples')
+    plt.legend(loc='upper right')
+    plt.grid(True)
+    plt.show()
