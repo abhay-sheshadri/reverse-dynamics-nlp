@@ -19,7 +19,7 @@ def parse_arguments():
   parser.add_argument('--samples', type=int, default=10000, 
                       help='Number of samples to keep.')
   
-  parser.add_argument('--batch_size', type=int, default=8,
+  parser.add_argument('--batch_size', type=int, default=10!,
                       help='Batch size for training.')
 
   return parser.parse_args()
@@ -58,7 +58,7 @@ def main():
     # min_length_over_dataset = min([len(example["text"]) for example in dataset])
 
     for (model_name, model_size) in zip(model_names, model_sizes):
-      model = GPTNeoXForCausalLM.from_pretrained(model_name ).to(device)
+      model = GPTNeoXForCausalLM.from_pretrained(model_name).to(device)
     
       tokenizer = GPTNeoXTokenizerFast.from_pretrained("EleutherAI/gpt-neox-20b")
 

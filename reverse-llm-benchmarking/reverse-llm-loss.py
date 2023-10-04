@@ -20,7 +20,7 @@ def parse_arguments():
   parser.add_argument('--samples', type=int, default=10000,
                       help='Number of samples to keep.')
 
-  parser.add_argument('--batch_size', type=int, default=8,
+  parser.add_argument('--batch_size', type=int, default=10,
                       help='Batch size for training.')
 
   return parser.parse_args()
