@@ -8,6 +8,7 @@ import os
 import gc
 import torch
 from transformers import GPTNeoXForCausalLM
+#%%
 
 def parse_arguments():
   parser = argparse.ArgumentParser(description="Process some arguments.")
@@ -83,12 +84,44 @@ def estimate_transition_matrix(
   transition_matrix = torch.sparse_coo_tensor(indices, values, (vocab_size, vocab_size), device=device)
   return transition_matrix
 #%%
-def is_stochastic_vector(pi, tol=1e-8):
-  if np.abs(np.sum(pi)-1)>tol:
+def is_stochastic_vector(pi, dim=0,tol=1e-8):
+  if abs(pi.sum(dim=dim)-1)>tol:
     return False
-  if not np.all(pi>=0):
+  if not (pi>=0).all(dim=dim):
     return False
   return True
+
+
+def is_distribution(tensor, dim=-1, tol=1e-5):
+    """
+    Checks if slices along the specified dimension of the tensor are distributions.
+
+    Parameters:
+    - tensor: input numpy ndarray or pytorch tensor.
+    - dim: dimension along which to check if slices are distributions.
+    - tol: tolerance for checking if sum is close to 1.
+
+    Returns:
+    - boolean tensor (or ndarray) indicating which slices are distributions.
+    """
+
+    # Check if it's a PyTorch tensor
+    if hasattr(tensor, 'is_cuda'):
+        # Ensure the tensor is on CPU
+        tensor = tensor.cpu()
+        
+        total = tensor.sum(dim=dim)
+        is_non_negative = (tensor >= 0).all(dim=dim)
+        
+        return (is_non_negative) & (abs(total - 1.0) <= tol)
+
+    # Assuming it's a numpy array otherwise
+    else:
+        total = tensor.sum(axis=dim)
+        is_non_negative = (tensor >= 0).all(axis=dim)
+        
+        return (is_non_negative) & (abs(total - 1.0) <= tol)
+
 
 def is_stochastic_matrix(W, tol = 1e-8):
   if sps.issparse(W):
@@ -141,6 +174,7 @@ def torch_sparse_to_scipy_csr(tensor: torch.Tensor) -> sps.csr_matrix:
     
     return csr_matrix
 
+#%%
 def main():
 
     args = parse_arguments()
