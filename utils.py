@@ -5,8 +5,10 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           GPTNeoXForCausalLM)
 from transformers.generation.logits_process import (LogitsProcessor,
                                                     LogitsProcessorList)
+from datasets import load_dataset
 
 
+SOFTMAX_FINAL = nn.Softmax(dim=-1)
 def token_gradients(model, input_ids, input_slice, target_slice, loss_slice):
 
     """
@@ -83,15 +85,27 @@ def reverse_decode(tokenizer, output):
     ]
 
 
-def reverse_generate(reverse_model, tokenizer, target, n_tokens):
+def reverse_normalized_forward(reverse_model, tokenizer, target, normalizer):
     inputs = reverse_tokenize(tokenizer, target)
-    outputs = reverse_model.generate(
-        input_ids=inputs,
-        max_new_tokens=n_tokens,
-        do_sample=False
-    )
-    return reverse_decode(tokenizer, outputs)
+    outputs = reverse_model(inputs).logits[0,-1,:]
+    outputs = SOFTMAX_FINAL(outputs).cpu()
+    outputs = torch.mul(outputs, normalizer)
+    return outputs
 
+def reverse_normalized_generate(reverse_model, tokenizer, target, max_length, normalizer, temperature=1):
+    prefix = []
+    for i in range(max_length):
+        normalized_probs = reverse_normalized_forward(reverse_model, tokenizer, ''.join(prefix[::-1]) + target, normalizer)
+        if not temperature:
+            token = tokenizer.decode(torch.argmax(normalized_probs))
+        else:
+            probs = torch.div(normalized_probs, temperature)
+            probs = torch.nn.Softmax(dim=-1)(probs)
+            token = tokenizer.decode(torch.multinomial(probs, num_samples=1))
+        if token == '[PAD]' or token == '[EOS]':
+            break
+        prefix.append(token)
+    return ''.join(prefix[::-1])+target
 
 class SampleTopTokens(LogitsProcessor):
 
@@ -106,3 +120,43 @@ class SampleTopTokens(LogitsProcessor):
         mask[:, self.top_grad_tokens[curr_pos]] = False
         scores.masked_fill_(mask, -float('inf'))
         return scores
+
+def get_token_probabilities(tokenizer, dataset="NeelNanda/pile-10k", vocab_size=50304):
+    data = load_dataset(dataset)
+    counts = torch.zeros(vocab_size, dtype=torch.float) #tokenizer.vocab_size is fake 50304 is the model output dimension which is what we care about
+
+    for chunk in data['train']:
+        # Extract text from chunk (assuming each chunk is a dictionary with a "text" key)
+        text = chunk['text']
+
+        # Tokenize the text
+        tokens = tokenizer(text, return_tensors="pt").input_ids[0]
+
+        # Count occurrences for each token
+        for tok in tokens:
+            counts[tok] += 1
+
+    # Normalize the counts to get probabilities
+    total_tokens = torch.sum(counts)
+    probabilities = counts / total_tokens
+    min_val = probabilities[probabilities > 0].min()
+    probabilities[probabilities == 0] = min_val
+    return probabilities
+
+def start_chunk_hf(chunk, tokenizer, num_prefix_tokens=10, num_suffix_tokens=40):
+    chunk = chunk['text']
+    tokens = tokenizer(chunk[:200])['input_ids'] #drop first couple tokens given risk of incomplete token
+    yield tokenizer.decode(tokens[:num_prefix_tokens]), tokenizer.decode(tokens[num_prefix_tokens:num_prefix_tokens+num_suffix_tokens])
+
+def rand_init(seq_length: int, tokenizer):
+    return tokenizer.decode(torch.randint(0, tokenizer.vocab_size, (seq_length,)))
+
+def forward_loss(model, pair, loss=torch.nn.CrossEntropyLoss(),):
+    prefix, suffix = pair
+    whole_tensor = tokenizer(prefix+suffix, return_tensors='pt').input_ids.cuda()
+    with torch.no_grad():
+        logs = model(whole_tensor).logits
+    start_ind = len(tokenizer.encode(prefix))
+    l_pref = loss(logs[0,:start_ind], whole_tensor[0,1:start_ind+1])
+    l_suff = loss(logs[0,start_ind:-1], whole_tensor[0,start_ind+1:])
+    return l_pref, l_suff
