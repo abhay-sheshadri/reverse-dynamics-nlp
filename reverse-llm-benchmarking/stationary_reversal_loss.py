@@ -44,6 +44,8 @@ def parse_arguments():
 def main():
 
   device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+  if device == "cuda":
+    print("Using gpu.")
 
   args = parse_arguments()
   sample_size = args.samples
