@@ -32,6 +32,7 @@ def get_logprob(input_ids, model, stationary_dist):
   return logprob
 
 
+# Currently Incorrect 
 def stationary_reverse_sample(
       model,
       stationary_dist, 

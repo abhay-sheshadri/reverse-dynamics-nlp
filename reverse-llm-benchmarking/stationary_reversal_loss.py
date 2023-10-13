@@ -18,20 +18,25 @@ sys.path.append("../stationary_reversal.py")
 import stationary_reversal as sr 
 
 #%%
+# The memory usage of this function is dominated by 
+# the output of the model, (batch_size, sample_length, vocab_size).
+# The default values here correspond to 5.24 gigabytes of memory.
+
 def parse_arguments():
   parser = argparse.ArgumentParser(description="Process some arguments.")
   
   parser.add_argument('--samples', type=int, default=10000, 
                       help='Number of samples to keep.')
   
-  parser.add_argument('--batch_size', type=int, default=10,
-                      help='Batch size for loss calculation.')
+  parser.add_argument('--suffix_batch_size', type=int, default=1,
+                      help='Batch size for loss calculation (i.e. number of suffixes).')
   
-  parser.add_argument('--sample_length', type=int, default=2048,
+  parser.add_argument('--sample_length', type=int, default=50,
                       help='Where to truncate the input sequences.')
   
-
-
+  parser.add_argument('--vocab_batch_size', type=int, default=262,
+                      help='Number of words to batch when computing reverse probability.')
+  
 
   return parser.parse_args()
 
@@ -42,8 +47,10 @@ def main():
 
   args = parse_arguments()
   sample_size = args.samples
-  batch_size = args.batch_size
+  suffix_batch_size = args.suffix_batch_size
   sample_length = args.sample_length
+  vocab_batch_size = args.vocab_batch_size
+
   #%%
   model_sizes = ["70m", "160m", "410m"]
   model_names = ["EleutherAI/pythia-" + size + "-deduped-v0" for size in model_sizes]
@@ -119,7 +126,7 @@ def main():
         tokenized_dataset, 
         shuffle=True, 
         collate_fn=data_collator, 
-        batch_size=batch_size)  
+        batch_size=suffix_batch_size)  
 
       model.eval()  
       criterion = torch.nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)  # This is your loss function
@@ -134,7 +141,9 @@ def main():
 
           # I assume it is fine to cross entropy with logprobs versus logits it's all the same
           logits = sr.stationary_reverse_full_dist_suffix_calculation(
-            model, empirical_dist, input_ids
+            model, empirical_dist, input_ids, 
+            vocab_batch_size=vocab_batch_size, 
+            renormalize_dist=True
           )
 
           # logits = rearrange(logits, 'b n c -> (b n) c')
