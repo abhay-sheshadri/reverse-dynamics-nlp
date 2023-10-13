@@ -4,33 +4,18 @@ from tqdm import tqdm
 import time
 import math
 import gc
-#%%
-
-# import os
-
-# # Get the current working directory
-# current_dir = os.getcwd()
-
-# # Change to the parent directory
-# os.chdir(os.path.dirname(current_dir))
-
-# # Print the new current working directory to verify
-# print(os.getcwd())
-
-
 #%% 
 import torch
 from datasets import load_dataset
 from transformers import GPTNeoXForCausalLM, GPTNeoXTokenizerFast, DataCollatorForLanguageModeling
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 #%%
 def get_cond_logprob(input_ids, model):
     with torch.no_grad():
-        outputs = model(input_ids=input_ids)
-        logits = outputs.logits
-        logprobs = torch.nn.functional.log_softmax(logits, dim=-1)
+        logprobs = torch.nn.functional.log_softmax(model(input_ids=input_ids).logits, dim=-1)
 
     # Get the log probabilities corresponding to the words in input_ids
     relevant_logprobs = torch.gather(logprobs, 2, input_ids.unsqueeze(-1)[:, 1:]).squeeze(-1)
@@ -106,6 +91,7 @@ def stationary_reverse_full_dist(
             v_sentences = torch.cat((batch_indices.unsqueeze(1), splus.repeat(batch_indices.size(0), 1)), dim=-1)
             psp_given_v_batch = get_cond_logprob(v_sentences, model)
 
+
                 # Check if it's the last batch
             if end_idx > vocab_size:
                 # Calculate the actual batch size for the last batch
@@ -121,6 +107,7 @@ def stationary_reverse_full_dist(
             newlogprob_batch = psp_given_v_batch + torch.log(stationary_dist[start_idx:end_idx]) - psp 
             vector_of_logprobs[prefix_length - i - 1, start_idx:end_idx] = newlogprob_batch
 
+            gc.collect()
 
     # Use softmax instead of .exp because vector_of_logprobs is not a distribution
     p = torch.distributions.Categorical(torch.nn.functional.softmax(vector_of_logprobs[prefix_length - i - 1,:])).sample()
@@ -154,10 +141,9 @@ def stationary_reverse_full_dist_suffix_calculation(
           tokenized_suffix[:,i+1:],
           vocab_batch_size=vocab_batch_size,
           renormalize_dist=renormalize_dist)[0,:]
+      gc.collect()       
 
   return vector_of_logprobs
-
-
 
 #%%
 

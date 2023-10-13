@@ -27,6 +27,10 @@ def parse_arguments():
         "--batch_size", type=int, default=10, help="Batch size for training."
     )
 
+    parser.add_argument('--sample_length', type=int, default=2048,
+                      help='Where to truncate the input sequences.'
+    )
+
     return parser.parse_args()
 
 
@@ -37,6 +41,7 @@ def main():
     args = parse_arguments()
     sample_size = args.samples
     batch_size = args.batch_size
+    sample_length = args.sample_length
     #
     model_sizes = ["70m", "160m", "410m"]
     model_names = ["EleutherAI/pythia-" + size + "-deduped-v0" for size in model_sizes]
@@ -61,7 +66,7 @@ def main():
             dataset = load_dataset("roneneldan/TinyStories", split="validation")
             dataset = dataset.select(range(sample_size))
         elif dataset_name == "pile_val":
-            dataset = load_dataset("json", data_files="val.jsonl")
+            dataset = load_dataset("json", data_files="data/val.jsonl")
             dataset = dataset["train"].select(range(sample_size))
 
         # min_length_over_dataset = min([len(example["text"]) for example in dataset])
@@ -79,7 +84,7 @@ def main():
                         example["text"],
                         truncation=True,
                         padding="max_length",
-                        max_length=2048,
+                        max_length=sample_length,
                         return_tensors="pt",
                     ).squeeze(0)
                 }

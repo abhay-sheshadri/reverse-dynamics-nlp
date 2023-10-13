@@ -15,8 +15,6 @@ import numpy as np
 import json
 import os
 
-#
-
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Process some arguments.")
@@ -29,6 +27,10 @@ def parse_arguments():
         "--batch_size", type=int, default=10, help="Batch size for training."
     )
 
+    parser.add_argument('--sample_length', type=int, default=2048,
+                      help="Where to truncate the input sequences."
+    )
+
     return parser.parse_args()
 
 
@@ -39,6 +41,8 @@ def main():
     args = parse_arguments()
     sample_size = args.samples
     batch_size = args.batch_size
+    sample_length = args.sample_length
+
     #
     reverse_model = GPTNeoXForCausalLM.from_pretrained(
         "afterless/reverse-pythia-160m"
@@ -72,7 +76,7 @@ def main():
             dataset = load_dataset("roneneldan/TinyStories", split="validation")
             dataset = dataset.select(range(sample_size))
         elif dataset_name == "pile_val":
-            dataset = load_dataset("json", data_files="val.jsonl")
+            dataset = load_dataset("json", data_files="data/val.jsonl")
             dataset = dataset["train"].select(range(sample_size))
 
         #
@@ -88,12 +92,24 @@ def main():
                     example["text"][::-1],
                     truncation=True,
                     padding="max_length",
-                    max_length=2048,
+                    max_length=sample_length,
                     return_tensors="pt",
                 ).squeeze(0)
             }
+        
+        def reverse_text_after_truncate(example):
+          truncated_text = tokenizer.encode(
+                              example["text"],
+                              truncation=True,
+                              padding="max_length",
+                              max_length=sample_length,
+                              return_tensors="pt",
+                            ).squeeze(0)
+          return {
+              "input_ids": truncated_text.flip(dims=[0])  
+          }
 
-        tokenized_dataset = dataset.map(reverse_text)
+        tokenized_dataset = dataset.map(reverse_text_after_truncate)
 
         all_columns = tokenized_dataset.column_names
 
@@ -153,7 +169,6 @@ def main():
             json.dump(data, f)
 
         # np.save(directory+"/reverse-loss-samples.npy", loss_array)
-
 
 if __name__ == "__main__":
     main()

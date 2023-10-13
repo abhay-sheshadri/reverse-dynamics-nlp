@@ -127,17 +127,17 @@ def main():
 
       with torch.no_grad():
         for batch in tqdm(dataloader, desc="Computing loss"):
-          input_ids = batch["input_ids"][:, :-1].to(device)  
-          targets = batch["input_ids"][:, 1:].to(device) 
+          input_ids = batch["input_ids"].to(device)  
+          targets = batch["input_ids"][:, :-1].to(device) 
 
           print(input_ids.shape)
 
           # I assume it is fine to cross entropy with logprobs versus logits it's all the same
-          outputs = sr.stationary_reverse_full_dist_suffix_calculation(
+          logits = sr.stationary_reverse_full_dist_suffix_calculation(
             model, empirical_dist, input_ids
           )
 
-          logits = rearrange(logits, 'b n c -> (b n) c')
+          # logits = rearrange(logits, 'b n c -> (b n) c')
           targets = rearrange(targets, 'b n -> (b n)')
           
           loss = criterion(logits, targets)
