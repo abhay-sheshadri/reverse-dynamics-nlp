@@ -113,7 +113,7 @@ def stationary_reverse_full_dist(
     # Use softmax instead of .exp because vector_of_logprobs is not a distribution
     p = torch.distributions.Categorical(torch.nn.functional.softmax(vector_of_logprobs[prefix_length - i - 1,:])).sample()
     p = p.unsqueeze(0)
-    p = p.unsqueeze(0)
+    p = p.unsqueeze(0).to(device)
     splus = torch.cat((p,splus),dim=-1)
     if renormalize_dist:
        vector_of_logprobs = torch.nn.functional.log_softmax(vector_of_logprobs,dim=-1)
@@ -131,6 +131,7 @@ def stationary_reverse_full_dist_suffix_calculation(
   
   model.eval()
   stationary_dist = stationary_dist.to(device)
+  tokenized_suffix = tokenized_suffix.to(device)
   vocab_size = stationary_dist.shape[0]
   suffix_length = tokenized_suffix.shape[1]
   vector_of_logprobs = torch.zeros(suffix_length-1, vocab_size)
