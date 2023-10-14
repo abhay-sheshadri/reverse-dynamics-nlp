@@ -165,7 +165,7 @@ def main():
         "variance": loss_variance,
         "std_on_mean": np.std(loss_array) / np.sqrt(nbatches),
         "total_samples": sample_size,
-        "batch_size": batch_size,
+        "suffix_batch_size": suffix_batch_size,
         "nbatches": nbatches
       }
 
