@@ -134,7 +134,7 @@ def stationary_reverse_full_dist_suffix_calculation(
   tokenized_suffix = tokenized_suffix.to(device)
   vocab_size = stationary_dist.shape[0]
   suffix_length = tokenized_suffix.shape[1]
-  vector_of_logprobs = torch.zeros(suffix_length-1, vocab_size)
+  vector_of_logprobs = torch.zeros(suffix_length-1, vocab_size).to(device)
 
   for i in range(suffix_length-1):
       vector_of_logprobs[i,:] = stationary_reverse_full_dist(

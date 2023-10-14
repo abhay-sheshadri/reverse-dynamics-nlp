@@ -146,7 +146,7 @@ def main():
             model, empirical_dist, input_ids, 
             vocab_batch_size=vocab_batch_size, 
             renormalize_dist=True
-          )
+          ).to(device)
 
           # logits = rearrange(logits, 'b n c -> (b n) c')
           targets = rearrange(targets, 'b n -> (b n)')
