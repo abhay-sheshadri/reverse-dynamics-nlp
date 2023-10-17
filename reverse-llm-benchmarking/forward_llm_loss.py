@@ -154,13 +154,14 @@ def main():
                 "total_samples": sample_size,
                 "batch_size": batch_size,
                 "nbatches": nbatches,
+                "sample_length": sample_length
             }
 
             directory = "data/" + dataset_name
             if not os.path.exists(directory):
                 os.makedirs(directory)
 
-            with open(directory + "/forwards-" + model_size + "-loss.json", "w") as f:
+            with open(directory + "/forwards-" + model_size + "-loss"+"-samplelength-"+str(sample_length)+".json", "w") as f:
                 json.dump(data, f)
 
             # np.save(directory+"/forwards-" + model_size + "-loss-samples.npy", loss_array)
