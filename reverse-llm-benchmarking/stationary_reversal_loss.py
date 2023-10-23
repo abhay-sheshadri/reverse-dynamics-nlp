@@ -166,14 +166,15 @@ def main():
         "std_on_mean": np.std(loss_array) / np.sqrt(nbatches),
         "total_samples": sample_size,
         "suffix_batch_size": suffix_batch_size,
-        "nbatches": nbatches
+        "nbatches": nbatches,
+        "sample_length": sample_length
       }
 
       directory = "data/" + dataset_name
       if not os.path.exists(directory):
         os.makedirs(directory)
 
-      with open(directory+"/stationary-reversal-" + model_size+ "-loss.json", "w") as f:
+      with open(directory+"/stationary-reversal-" + model_size+ "-loss"+"-samplelength-"+str(sample_length)+".json", "w") as f:
         json.dump(data, f)
 
 
