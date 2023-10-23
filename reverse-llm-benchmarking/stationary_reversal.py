@@ -42,38 +42,12 @@ def get_logprob(input_ids, model, stationary_dist):
     return logprob
 
 
-#def get_logprob_with_reverse(input_ids, model, reverse_model):
-    
-
-# Currently Incorrect
-def stationary_reverse_sample(model, stationary_dist, prefix_length, tokenized_suffix):
-
-    model.eval()
-    vocab_size = stationary_dist.shape[0]
-    splus = tokenized_suffix
-    for i in range(prefix_length):
-        print("i=", i)
-        psp = get_logprob(splus, model, stationary_dist)
-        uniform_rv = torch.rand(1).item()
-        j = 0
-        v0_sentence = torch.cat((torch.tensor([[0]]), splus), dim=-1)
-        psp_given_v0 = get_cond_logprob(v0_sentence, model)
-
-        c = torch.exp(psp_given_v0 + torch.log(stationary_dist[0]) - psp)
-
-        pbar = tqdm(total=vocab_size)
-        while c < uniform_rv:
-            j += 1
-            v_sentence = torch.cat((torch.tensor([[j]]), splus), dim=-1)
-            psp_given_v = get_cond_logprob(v_sentence, model)
-            newlogprob = psp_given_v + torch.log(stationary_dist[j]) - psp
-            c = c + torch.exp(newlogprob)
-            if j % 1000 == 0:
-                print(c)
-                pbar.update(1000)
-        pbar.close()
-        p = torch.tensor([[j]])
-        splus = torch.cat((p, splus), dim=-1)
+def get_logprob_with_reverse(input_ids, reverse_model, eos_token_id=0):
+    input_ids = torch.flip(input_ids, (1,))
+    prepend_eos = torch.tensor([[eos_token_id]]).to(input_ids.device)
+    input_ids = torch.cat([prepend_eos.repeat(input_ids.shape[0], 1), input_ids], dim=-1)
+    logprob = get_cond_logprob(input_ids, reverse_model)
+    return logprob
 
 
 # only supports batch_size 1 currently
@@ -85,7 +59,7 @@ def stationary_reverse_full_dist(
     vocab_batch_size=1572,
     temperature=1.0,
     renormalize_dist=True,
-    reverse_model=None
+    reverse_model=None,
 ):
 
     model.eval()
@@ -96,7 +70,10 @@ def stationary_reverse_full_dist(
 
     for i in range(prefix_length):
         print("i=", i)
-        psp = get_logprob(splus, model, stationary_dist)
+        if reverse_model is None:
+            psp = get_logprob(splus, model, stationary_dist)
+        else:
+            psp = get_logprob_with_reverse(splus, reverse_model)
         for batch_num in tqdm(range(total_batches)):
             start_idx = batch_num * vocab_batch_size
             end_idx = start_idx + vocab_batch_size
@@ -137,8 +114,8 @@ def stationary_reverse_full_dist(
 
         # Use softmax instead of .exp because vector_of_logprobs is not a distribution
         if temperature == 0:
-                p = vector_of_logprobs[prefix_length - i - 1, :].argmax()
-        else:    
+            p = vector_of_logprobs[prefix_length - i - 1, :].argmax()
+        else:
             p = torch.distributions.Categorical(
                 torch.nn.functional.softmax(
                     vector_of_logprobs[prefix_length - i - 1, :] / temperature, dim=-1
@@ -180,7 +157,7 @@ def stationary_reverse_full_dist_suffix_calculation(
             tokenized_suffix[:, i + 1 :],
             vocab_batch_size=vocab_batch_size,
             renormalize_dist=renormalize_dist,
-        )[0, :]
+        )[0][0, :]
         gc.collect()
 
     return vector_of_logprobs
@@ -236,6 +213,38 @@ def stationary_reverse_full_dist_suffix_calculation(
 
 #           newlogprob_batch = psp_given_v_batch
 #           vector_of_logprobs[0, start_idx:end_idx] = newlogprob_batch
+
+
+# Currently Incorrect
+# def stationary_reverse_sample(model, stationary_dist, prefix_length, tokenized_suffix):
+
+#     model.eval()
+#     vocab_size = stationary_dist.shape[0]
+#     splus = tokenized_suffix
+#     for i in range(prefix_length):
+#         print("i=", i)
+#         psp = get_logprob(splus, model, stationary_dist)
+#         uniform_rv = torch.rand(1).item()
+#         j = 0
+#         v0_sentence = torch.cat((torch.tensor([[0]]), splus), dim=-1)
+#         psp_given_v0 = get_cond_logprob(v0_sentence, model)
+
+#         c = torch.exp(psp_given_v0 + torch.log(stationary_dist[0]) - psp)
+
+#         pbar = tqdm(total=vocab_size)
+#         while c < uniform_rv:
+#             j += 1
+#             v_sentence = torch.cat((torch.tensor([[j]]), splus), dim=-1)
+#             psp_given_v = get_cond_logprob(v_sentence, model)
+#             newlogprob = psp_given_v + torch.log(stationary_dist[j]) - psp
+#             c = c + torch.exp(newlogprob)
+#             if j % 1000 == 0:
+#                 print(c)
+#                 pbar.update(1000)
+#         pbar.close()
+#         p = torch.tensor([[j]])
+#         splus = torch.cat((p, splus), dim=-1)
+
 
 
 #   return vector_of_logprobs
