@@ -44,6 +44,7 @@ def estimate_transition_matrix(
   values_list = []  
 
   filter_prob_tensor = torch.tensor(filter_prob).to(device) 
+  err_vec = torch.zeros(vocab_size).to(device)
 
   for batch_num in tqdm(range(total_batches)):
         start_idx = batch_num * batch_size
@@ -66,6 +67,8 @@ def estimate_transition_matrix(
         partial_sums = filtered_probs.sum(dim=-1, keepdim=True)
         normalized_probs = filtered_probs / partial_sums
 
+        err_vec[start_idx:end_idx] = 1-partial_sums.squeeze()
+
         # print(sum(normalized_probs, dim=-1))
 
         values_list.append(normalized_probs[ids, 0, vocab_indices])
@@ -82,7 +85,7 @@ def estimate_transition_matrix(
   indices = torch.cat(indices_list, dim=1)
   values = torch.cat(values_list, dim=0)
   transition_matrix = torch.sparse_coo_tensor(indices, values, (vocab_size, vocab_size), device=device)
-  return transition_matrix
+  return transition_matrix, err_vec
 #%%
 def is_stochastic_vector(pi, dim=0,tol=1e-8):
   if abs(pi.sum(dim=dim)-1)>tol:
@@ -190,7 +193,7 @@ def main():
 
     vocab_size = model.config.vocab_size
 
-    P = estimate_transition_matrix(model, device, batch_size=batch_size, filter_prob = min_prob)
+    P = estimate_transition_matrix(model, device, batch_size=batch_size, filter_prob = min_prob)[0]
     P_csr = torch_sparse_to_scipy_csr(P.coalesce())
 
     directory = "data/"+model_name
