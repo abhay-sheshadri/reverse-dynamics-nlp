@@ -42,7 +42,7 @@ def get_logprob(input_ids, model, stationary_dist):
     return logprob
 
 
-def get_logprob_with_reverse(input_ids, reverse_model, eos_token_id=0):
+def get_logprob_with_reverse(input_ids, reverse_model, eos_token_id=15):
     input_ids = torch.flip(input_ids, (1,))
     prepend_eos = torch.tensor([[eos_token_id]]).to(input_ids.device)
     input_ids = torch.cat([prepend_eos.repeat(input_ids.shape[0], 1), input_ids], dim=-1)
