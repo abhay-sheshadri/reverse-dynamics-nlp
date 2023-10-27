@@ -2,12 +2,14 @@
 import argparse
 import numpy as np
 import scipy.sparse as sps
+from scipy.special import logsumexp
 from tqdm import tqdm
 import math
 import os
 import gc
 import torch
 from transformers import GPTNeoXForCausalLM
+# import einsum
 #%%
 
 def parse_arguments():
@@ -86,6 +88,103 @@ def estimate_transition_matrix(
   values = torch.cat(values_list, dim=0)
   transition_matrix = torch.sparse_coo_tensor(indices, values, (vocab_size, vocab_size), device=device)
   return transition_matrix, err_vec
+
+
+def log_space_product(A,B):
+    Astack = np.stack([A]*B.shape[1]).transpose(1,0,2)
+    Bstack = np.stack([B]*A.shape[0]).transpose(0,2,1)
+    return logsumexp(Astack+Bstack, axis=2)
+
+def model_left_multiply(model, 
+                        distribution, 
+                        device,
+                        batch_size=1572,
+                        vocab_size=50304,
+                        logspace=False):
+
+  assert vocab_size % batch_size == 0
+
+  total_batches = math.ceil(vocab_size/batch_size)
+  if logspace == True:
+    distribution = torch.log(distribution)
+  
+
+  for batch_num in tqdm(range(total_batches)):
+        start_idx = batch_num * batch_size
+        end_idx = start_idx + batch_size
+        input_ids = torch.arange(start_idx, end_idx).clamp_(0, vocab_size-1).unsqueeze(1)
+        input_ids = input_ids.to(device)
+
+        with torch.no_grad():
+          outputs = model(input_ids=input_ids)
+          logits = outputs.logits.float()
+          logprobs = torch.nn.functional.log_softmax(logits, dim=-1)
+          if logspace == False:
+            probs = torch.exp(logprobs)
+
+        # logprobs.shape is (batch_size, 1, vocab_size)
+        # distribution.shape is 
+        if logspace:
+          out_vec += torch.tensor(log_space_product(distribution[start_idx:end_idx].unsqueeze(0),logprobs.squeeze(1))).squeeze(0)
+        else:
+          out_vec += distribution[start_idx:end_idx] @ probs.squeeze(1)
+
+  return out_vec
+
+def model_left_multiply_in_place(model, 
+                        distribution, 
+                        out_vec,
+                        device,
+                        batch_size=1572,
+                        vocab_size=50304,
+                        logspace=False):
+  assert vocab_size % batch_size == 0
+  total_batches = math.ceil(vocab_size/batch_size)
+  if logspace == True:
+    distribution = torch.log(distribution)
+  
+  for batch_num in tqdm(range(total_batches)):
+        start_idx = batch_num * batch_size
+        end_idx = start_idx + batch_size
+        input_ids = torch.arange(start_idx, end_idx).clamp_(0, vocab_size-1).unsqueeze(1)
+        input_ids = input_ids.to(device)
+
+        with torch.no_grad():
+          outputs = model(input_ids=input_ids)
+          logits = outputs.logits.float()
+          logprobs = torch.nn.functional.log_softmax(logits, dim=-1)
+          if logspace == False:
+            probs = torch.exp(logprobs)
+
+        if logspace:
+          out_vec += torch.tensor(log_space_product(distribution[start_idx:end_idx].unsqueeze(0),logprobs.squeeze(1))).squeeze(0)
+        else:
+          out_vec += distribution[start_idx:end_idx] @ probs.squeeze(1)
+
+  return                           
+
+def model_left_power_iteration(model, 
+                        distribution, 
+                        device,
+                        batch_size=1572,
+                        vocab_size=50304,
+                        logspace=False,
+                        maxiter=1000,
+                        tol=1e-8):
+   
+  assert vocab_size % batch_size == 0
+  out = torch.copy(distribution)
+  out_plus = torch.zeros(vocab_size).to(device)
+  for i in tqdm(range(1, maxiter)): 
+     model_left_multiply_in_place(model, out, out_plus, device, batch_size, vocab_size)
+     err = torch.abs(out_plus - out).sum()
+     print(err)
+     if err < tol:
+       return out_plus
+     out[:]=out_plus   
+  print("Failed to converge before maxiter.")
+  return out
+
 #%%
 def is_stochastic_vector(pi, dim=0,tol=1e-8):
   if abs(pi.sum(dim=dim)-1)>tol:
