@@ -186,6 +186,30 @@ def model_left_power_iteration(model,
   print("Failed to converge before maxiter.")
   return out
 
+def model_left_power_iteration_full_mat(model, 
+                        distribution, 
+                        device,
+                        vocab_size=50304,
+                        logspace=False,
+                        batch_size = 1572,
+                        maxiter=1000,
+                        tol=1e-8):
+  assert vocab_size % batch_size == 0
+  out = torch.clone(distribution).to(device)
+  out_plus = torch.zeros(vocab_size).to(device)
+  P_mat = estimate_transition_matrix(model, device, batch_size=batch_size, filter_prob=0.0)[0]
+  for i in tqdm(range(1, maxiter)): 
+     out_plus = out @ P_mat
+     err = torch.abs(out_plus - out).sum()
+     print(err)
+     if err < tol:
+       return out_plus
+     out[:]=out_plus
+       
+  print("Failed to converge before maxiter.")
+  return out
+
+
 #%%
 def is_stochastic_vector(pi, dim=0,tol=1e-8):
   if abs(pi.sum(dim=dim)-1)>tol:
