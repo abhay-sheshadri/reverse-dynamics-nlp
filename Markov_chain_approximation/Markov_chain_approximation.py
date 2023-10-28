@@ -173,7 +173,7 @@ def model_left_power_iteration(model,
                         tol=1e-8):
    
   assert vocab_size % batch_size == 0
-  out = torch.copy(distribution)
+  out = torch.clone(distribution)
   out_plus = torch.zeros(vocab_size).to(device)
   for i in tqdm(range(1, maxiter)): 
      model_left_multiply_in_place(model, out, out_plus, device, batch_size, vocab_size)
@@ -181,7 +181,8 @@ def model_left_power_iteration(model,
      print(err)
      if err < tol:
        return out_plus
-     out[:]=out_plus   
+     out[:]=out_plus
+     out_plus = torch.zeros(vocab_size).to(device)
   print("Failed to converge before maxiter.")
   return out
 
