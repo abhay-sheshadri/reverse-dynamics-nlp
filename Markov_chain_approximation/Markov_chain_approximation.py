@@ -90,6 +90,8 @@ def estimate_transition_matrix(
   return transition_matrix, err_vec
 
 
+
+
 def log_space_product(A,B):
     Astack = np.stack([A]*B.shape[1]).transpose(1,0,2)
     Bstack = np.stack([B]*A.shape[0]).transpose(0,2,1)
@@ -130,6 +132,8 @@ def model_left_multiply(model,
           out_vec += distribution[start_idx:end_idx] @ probs.squeeze(1)
 
   return out_vec
+
+
 
 def model_left_multiply_in_place(model, 
                         distribution, 
@@ -197,7 +201,19 @@ def model_left_power_iteration_full_mat(model,
   assert vocab_size % batch_size == 0
   out = torch.clone(distribution).to(device)
   out_plus = torch.zeros(vocab_size).to(device)
-  P_mat = estimate_transition_matrix(model, device, batch_size=batch_size, filter_prob=0.0)[0]
+
+  input_ids = torch.arange(0, vocab_size).unsqueeze(1)
+  input_ids = input_ids.to(device)
+
+  # Make more modular.
+
+  with torch.no_grad():
+    outputs = model(input_ids=input_ids)
+    logits = outputs.logits.float()
+    logprobs = torch.nn.functional.log_softmax(logits, dim=-1)
+    probs = torch.exp(logprobs)
+
+  P_mat = probs.squeeze(1)
   for i in tqdm(range(1, maxiter)): 
      out_plus = out @ P_mat
      err = torch.abs(out_plus - out).sum()
