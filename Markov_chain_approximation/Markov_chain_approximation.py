@@ -345,7 +345,7 @@ def main():
     directory = "data/"
     if not os.path.exists(directory):
       os.makedirs(directory)
-    torch.save("data/"+model_name+"_stationary_dist.pt", piv)
+    torch.save(piv,"data/"+model_name+"_stationary_dist.pt")
 
 if __name__ == "__main__":
   main()
