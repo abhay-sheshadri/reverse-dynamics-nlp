@@ -281,7 +281,7 @@ def compute_stationary_distribution(Q):
   n = Q.shape[0]
   B = Q[0:n-1,0:n-1]
   d = Q[0:n-1,n-1]
-  
+
   # check if a torch tensor
   if hasattr(Q, 'is_cuda'):
     if Q.is_sparse:
@@ -290,7 +290,7 @@ def compute_stationary_distribution(Q):
     else:
       print("Using torch")
       pi = torch.linalg.solve(B, -d)
-    pi = torch.cat([pi,torch.tensor([1.])])
+    pi = torch.cat([pi.cpu(), torch.tensor([1.])])
     pi = pi/pi.sum()
   else:
     sparse = sps.issparse(Q)
