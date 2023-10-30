@@ -277,32 +277,35 @@ def is_stochastic_matrix(W, tol = 1e-8):
 
 # Q should be a rate matrix P-I for row stochastic P 
 def compute_stationary_distribution(Q):
-  sparse = sps.issparse(Q)
-  if sparse == True:
-    print("Using sparsity")
-    Q=Q.T
-    n = Q.shape[0]
-    B = Q[0:n-1,0:n-1]
-    d = Q[0:n-1,n-1]
-    pi = np.array(sps.linalg.spsolve(B, -d))
-    pi = np.squeeze(pi)
-    pi = np.concatenate([pi,np.array([1.])])
-    pi = pi/np.sum(pi)
+  Q = Q.T
+  n = Q.shape[0]
+  B = Q[0:n-1,0:n-1]
+  d = Q[0:n-1,n-1]
+  
+  # check if a torch tensor
+  if hasattr(Q, 'is_cuda'):
+    if Q.is_sparse:
+      print("sparse torch version not implemented yet")
+      return
+    else:
+      print("Using torch")
+      pi = torch.linalg.solve(B, -d)
+    pi = torch.cat([pi,torch.tensor([1.])])
+    pi = pi/pi.sum()
   else:
-    print("Not using sparsity")
-    Q = Q.T
-    n = Q.shape[0]
-    B = Q[0:n-1,0:n-1]
-    d = Q[0:n-1,n-1]
-    pi = np.array(np.linalg.solve(B, -d))
+    sparse = sps.issparse(Q)
+    if sparse == True:
+      print("Using sparsity")
+      pi = sps.linalg.spsolve(B, -d)
+    else:
+      print("Not using sparsity")
+      pi = np.linalg.solve(B, -d)
     pi = np.squeeze(pi)
     pi = np.concatenate([pi,np.array([1.])])
     pi = pi/np.sum(pi)
-
   if not is_stochastic_vector(pi):
     print('The computed stationary distribution is not stochastic.')
     return pi
-
   return pi
 
 def torch_sparse_to_scipy_csr(tensor: torch.Tensor) -> sps.csr_matrix:
