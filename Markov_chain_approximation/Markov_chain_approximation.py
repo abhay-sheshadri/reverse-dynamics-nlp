@@ -190,6 +190,19 @@ def model_left_power_iteration(model,
   print("Failed to converge before maxiter.")
   return out
 
+def construct_LLM_onestep_matrix(model, device, vocab_size = 50304):
+    input_ids = torch.arange(0, vocab_size).unsqueeze(1)
+    input_ids = input_ids.to(device)
+
+    with torch.no_grad():
+      outputs = model(input_ids=input_ids)
+      logits = outputs.logits.float()
+      logprobs = torch.nn.functional.log_softmax(logits, dim=-1)
+      probs = torch.exp(logprobs)
+
+    return probs.squeeze(1)
+
+
 def model_left_power_iteration_full_mat(model, 
                         distribution, 
                         device,
@@ -202,18 +215,7 @@ def model_left_power_iteration_full_mat(model,
   out = torch.clone(distribution).to(device)
   out_plus = torch.zeros(vocab_size).to(device)
 
-  input_ids = torch.arange(0, vocab_size).unsqueeze(1)
-  input_ids = input_ids.to(device)
-
-  # Make more modular.
-
-  with torch.no_grad():
-    outputs = model(input_ids=input_ids)
-    logits = outputs.logits.float()
-    logprobs = torch.nn.functional.log_softmax(logits, dim=-1)
-    probs = torch.exp(logprobs)
-
-  P_mat = probs.squeeze(1)
+  P_mat = construct_LLM_onestep_matrix(model, device, vocab_size)
   for i in tqdm(range(1, maxiter)): 
      out_plus = out @ P_mat
      err = torch.abs(out_plus - out).sum()

@@ -61,6 +61,8 @@ def main():
   
   empirical_dist = torch.load("../data/pile10k_empirical.pt")
   
+  list_of_stationary_distributions = ["empirical_dist", "uniform_dist", "Markov_stationary_dist"]
+
   for dataset_name in list_of_dataset_names:
     if dataset_name == "small-pile-dedup-train":
         # Using the Pile
@@ -133,7 +135,7 @@ def main():
       model.eval()  
       criterion = torch.nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)  # This is your loss function
       losses = []
-
+ 
       with torch.no_grad():
         for batch in tqdm(dataloader, desc="Computing loss"):
           input_ids = batch["input_ids"].to(device)  
