@@ -15,11 +15,11 @@ from transformers import GPTNeoXForCausalLM
 def parse_arguments():
   parser = argparse.ArgumentParser(description="Process some arguments.")
 
-  parser.add_argument('--min_prob', type=float, default=1e-3,
-                      help='Number of samples to keep.')
+  # parser.add_argument('--min_prob', type=float, default=1e-3,
+  #                     help='Number of samples to keep.')
 
-  parser.add_argument('--batch_size', type=int, default=1572,
-                      help='Batch size for training.')
+  # parser.add_argument('--batch_size', type=int, default=1572,
+  #                     help='Batch size for training.')
   
   parser.add_argument('--model_name', type=str, default = 'pythia-160m-deduped-v0',
                       help ='LLM model name.')
@@ -322,12 +322,13 @@ def torch_sparse_to_scipy_csr(tensor: torch.Tensor) -> sps.csr_matrix:
     
     return csr_matrix
 
+def tv(dist1, dist2):
+  return 0.5*(dist1-dist2).abs().sum()
+
 #%%
 def main():
 
     args = parse_arguments()
-    min_prob = args.min_prob
-    batch_size = args.batch_size
     model_name = args.model_name
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -337,24 +338,31 @@ def main():
         ).to(device)
 
     vocab_size = model.config.vocab_size
-
-    P = estimate_transition_matrix(model, device, batch_size=batch_size, filter_prob = min_prob)[0]
-    P_csr = torch_sparse_to_scipy_csr(P.coalesce())
-
-    directory = "data/"+model_name
+    P_full = construct_LLM_onestep_matrix(model, device, vocab_size)
+    Q = P_full-torch.eye(vocab_size).to(device)
+    piv = compute_stationary_distribution(Q)
+    piv = piv.cpu()
+    directory = "data/"
     if not os.path.exists(directory):
       os.makedirs(directory)
-
-    formatted_number = "{:.1e}".format(min_prob)
-    formatted_number = formatted_number.replace(".0e", "e")
-
-    sps.save_npz(directory+"/"+"transition_matrix_minprob_" + formatted_number, P_csr)
-
-    pi = compute_stationary_distribution(P_csr-sps.eye(vocab_size))
-    np.save(directory+"/"+"stat_dist_minprob"+formatted_number, pi)
-
+    torch.save("data/"+model_name+"_stationary_dist.pt", piv)
 
 if __name__ == "__main__":
   main()
 
-# %%
+# Old Code:
+# Truncate for sparse matrix:
+# P = estimate_transition_matrix(model, device, batch_size=batch_size, filter_prob = min_prob)[0]
+# P_csr = torch_sparse_to_scipy_csr(P.coalesce())
+
+# directory = "data/"+model_name
+# if not os.path.exists(directory):
+#   os.makedirs(directory)
+
+# formatted_number = "{:.1e}".format(min_prob)
+# formatted_number = formatted_number.replace(".0e", "e")
+
+# sps.save_npz(directory+"/"+"transition_matrix_minprob_" + formatted_number, P_csr)
+
+# pi = compute_stationary_distribution(P_csr-sps.eye(vocab_size))
+# np.save(directory+"/"+"stat_dist_minprob"+formatted_number, pi)

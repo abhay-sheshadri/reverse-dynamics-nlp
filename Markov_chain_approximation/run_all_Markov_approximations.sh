@@ -5,6 +5,6 @@
 # 1572, 2096, 3144, 4192, 6288, 8384, 12576, 16768, 25152, 50304}
 
 
-python Markov_chain_approximation.py  --min_prob 1e-4 --batch_size 1572 --model_name pythia-70m-deduped-v0
-python Markov_chain_approximation.py --min_prob 1e-4 --batch_size 786 --model_name pythia-160m-deduped-v0
-python Markov_chain_approximation.py --min_prob 1e-4 --batch_size 786 --model_name pythia-410m-deduped-v0
+python Markov_chain_approximation.py --model_name pythia-70m-deduped-v0
+python Markov_chain_approximation.py --model_name pythia-160m-deduped-v0
+python Markov_chain_approximation.py --model_name pythia-410m-deduped-v0
