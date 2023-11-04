@@ -9,7 +9,8 @@ def create_dataset(
     num_examples,
     prefix_length,
     suffix_length=1,
-    num_buffer=0
+    num_buffer=0,
+    suffix_batch_size=1
 ):
     
     # Check that the dataset is in the list of valid datasets
@@ -33,26 +34,29 @@ def create_dataset(
         dataset = load_dataset('json', data_files='data/val.jsonl')
         dataset = dataset['train'].select(range(num_examples))
 
+
+
     tokenizer.pad_token = tokenizer.eos_token
 
-    def tokenize_text(example):
+
+    def tokenize_text(data, tokenizer):
         return {
             'input_ids': tokenizer.encode(
-                example['text'],
-                truncation=True,
-                padding='max_length',
-                max_length=sample_length,
+                data['text'],
                 return_tensors='pt'
             ).squeeze(0)
         }
 
     tokenized_dataset = dataset.map(tokenize_text)
+    tokenized_dataset = tokenized_dataset.map(lambda x: {'num_tokens': len(x['input_ids'])})
+    assert min(tokenized_dataset["num_tokens"]) >= num_buffer+prefix_length
+    tokenized_dataset = tokenized_dataset.map(lambda x: {'input_ids_truncated': x['input_ids'][num_buffer:num_buffer+prefix_length]})
 
     # Get all column names
     all_columns = tokenized_dataset.column_names
     # Find columns to remove
     columns_to_remove = [column for column in all_columns
-                            if column != 'input_ids']
+                            if column != 'input_ids_truncated']
     # Remove unwanted columns
     tokenized_dataset = tokenized_dataset.remove_columns(columns_to_remove)
 
@@ -68,6 +72,8 @@ def create_dataset(
     dataloader = DataLoader(tokenized_dataset, shuffle=True,
                             collate_fn=data_collator,
                             batch_size=suffix_batch_size)
+    
+    return dataloader
 
 
 # Write stuff for model loading
