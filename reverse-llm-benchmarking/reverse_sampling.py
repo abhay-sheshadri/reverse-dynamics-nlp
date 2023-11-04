@@ -1,6 +1,7 @@
+import math
+
 import torch
 from tqdm import tqdm
-import math
 
 
 def get_cond_logprob(input_ids, model):

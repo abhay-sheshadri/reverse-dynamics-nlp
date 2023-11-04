@@ -1,19 +1,15 @@
 #%%
-import numpy as np
-from tqdm import tqdm
-import time
-import math
 import gc
+import math
+import time
 
+import numpy as np
 #%%
 import torch
 from datasets import load_dataset
-from transformers import (
-    GPTNeoXForCausalLM,
-    GPTNeoXTokenizerFast,
-    DataCollatorForLanguageModeling,
-)
-
+from tqdm import tqdm
+from transformers import (DataCollatorForLanguageModeling, GPTNeoXForCausalLM,
+                          GPTNeoXTokenizerFast)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -42,14 +38,6 @@ def get_logprob(input_ids, model, stationary_dist):
     return logprob
 
 
-def get_logprob_with_reverse(input_ids, reverse_model, eos_token_id=15):
-    input_ids = torch.flip(input_ids, (1,))
-    prepend_eos = torch.tensor([[eos_token_id]]).to(input_ids.device)
-    input_ids = torch.cat([prepend_eos.repeat(input_ids.shape[0], 1), input_ids], dim=-1)
-    logprob = get_cond_logprob(input_ids, reverse_model)
-    return logprob
-
-
 # only supports batch_size 1 currently
 def stationary_reverse_full_dist(
     model,
@@ -59,7 +47,6 @@ def stationary_reverse_full_dist(
     vocab_batch_size=1572,
     temperature=1.0,
     renormalize_dist=True,
-    reverse_model=None,
 ):
 
     model.eval()
@@ -70,10 +57,9 @@ def stationary_reverse_full_dist(
 
     for i in range(prefix_length):
         print("i=", i)
-        if reverse_model is None:
-            psp = get_logprob(splus, model, stationary_dist)
-        else:
-            psp = get_logprob_with_reverse(splus, reverse_model)
+        
+        psp = 0  # get_logprob(splus, model, stationary_dist)
+        
         for batch_num in tqdm(range(total_batches)):
             start_idx = batch_num * vocab_batch_size
             end_idx = start_idx + vocab_batch_size

@@ -1,6 +1,7 @@
-from datasets import load_dataset, concatenate_datasets
-import torch
-from einops import rearrange
+from datasets import concatenate_datasets, load_dataset
+from torch.utils.data import DataLoader
+from transformers import (DataCollatorForLanguageModeling, GPTNeoXForCausalLM,
+                          GPTNeoXTokenizerFast)
 
 
 def create_dataset(
@@ -10,9 +11,10 @@ def create_dataset(
     prefix_length,
     suffix_length=1,
     num_buffer=0,
-    suffix_batch_size=1
+    suffix_batch_size=1,
+    seed=42
 ):
-    
+          
     # Check that the dataset is in the list of valid datasets
     list_of_dataset_names = ["pile_val", "small-pile-dedup-train", "TinyStories"]
     assert dataset_name in list_of_dataset_names
@@ -29,28 +31,25 @@ def create_dataset(
     elif dataset_name == 'TinyStories':
         # Using the Tiny Stories Data Set
         dataset = load_dataset('roneneldan/TinyStories', split='validation')
+        dataset = dataset.shuffle(seed=seed)
         dataset = dataset.select(range(num_examples))
     elif dataset_name == 'pile_val':
         dataset = load_dataset('json', data_files='data/val.jsonl')
+        dataset = dataset.shuffle(seed=seed)
         dataset = dataset['train'].select(range(num_examples))
-
-
 
     tokenizer.pad_token = tokenizer.eos_token
 
-
-    def tokenize_text(data, tokenizer):
-        return {
-            'input_ids': tokenizer.encode(
-                data['text'],
-                return_tensors='pt'
-            ).squeeze(0)
-        }
-
-    tokenized_dataset = dataset.map(tokenize_text)
+    tokenized_dataset = dataset.map(lambda data: {
+        'input_ids': tokenizer.encode(
+            data['text'],
+            return_tensors='pt'
+        ).squeeze(0)
+    })
     tokenized_dataset = tokenized_dataset.map(lambda x: {'num_tokens': len(x['input_ids'])})
-    assert min(tokenized_dataset["num_tokens"]) >= num_buffer+prefix_length
-    tokenized_dataset = tokenized_dataset.map(lambda x: {'input_ids_truncated': x['input_ids'][num_buffer:num_buffer+prefix_length]})
+    total_length = prefix_length + suffix_length - 1
+    assert min(tokenized_dataset["num_tokens"]) >= num_buffer + total_length
+    tokenized_dataset = tokenized_dataset.map(lambda x: {'input_ids_truncated': x['input_ids'][num_buffer:num_buffer+total_length]})
 
     # Get all column names
     all_columns = tokenized_dataset.column_names
@@ -59,7 +58,7 @@ def create_dataset(
                             if column != 'input_ids_truncated']
     # Remove unwanted columns
     tokenized_dataset = tokenized_dataset.remove_columns(columns_to_remove)
-
+    tokenized_dataset = tokenized_dataset.rename_column("input_ids_truncated", "input_ids")
 
     # Use DataCollator to handle padding during training
     data_collator = DataCollatorForLanguageModeling(
@@ -69,10 +68,13 @@ def create_dataset(
     )
 
     # Convert dataset to DataLoader for batch processing
-    dataloader = DataLoader(tokenized_dataset, shuffle=True,
-                            collate_fn=data_collator,
-                            batch_size=suffix_batch_size)
-    
+    dataloader = DataLoader(
+        tokenized_dataset,
+        shuffle=False,
+        collate_fn=data_collator,
+        batch_size=suffix_batch_size
+    )
+
     return dataloader
 
 

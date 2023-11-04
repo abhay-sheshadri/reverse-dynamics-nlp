@@ -1,19 +1,17 @@
 #
 import argparse
-from tqdm import tqdm
-from transformers import (
-    GPTNeoXForCausalLM,
-    GPTNeoXTokenizerFast,
-    DataCollatorForLanguageModeling,
-)
-from torch.utils.data import DataLoader
-from datasets import load_dataset
-import torch
-from einops import rearrange
-from datasets import concatenate_datasets
-import numpy as np
 import json
 import os
+
+import numpy as np
+import torch
+from datasets import concatenate_datasets, load_dataset
+from einops import rearrange
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+from transformers import (DataCollatorForLanguageModeling, GPTNeoXForCausalLM,
+                          GPTNeoXTokenizerFast)
+
 
 #
 def parse_arguments():
