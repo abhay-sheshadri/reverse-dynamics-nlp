@@ -76,6 +76,7 @@ def sample_reverse_dynamics(
     device="cuda"
 ):
     splus = tokenized_suffix
+    full_logits = []
     stationary_dist = stationary_dist.to(device)
     
     for i in range(prefix_length):
@@ -86,10 +87,11 @@ def sample_reverse_dynamics(
             vocab_batch_size,
             device
         )
+        full_logits = [logits,] + full_logits
         p = sample_with_temp(
             logits,
             temperature
         )
         splus = torch.cat((p.unsqueeze(0).unsqueeze(0), splus), dim=-1)
         
-    return splus
+    return splus, torch.stack(full_logits)
