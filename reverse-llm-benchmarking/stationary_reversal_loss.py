@@ -65,8 +65,8 @@ def parse_arguments():
         help='Path to the distribution file'
     )
     
-    parser.add_argument('--dillution', type=float, default=0.0,
-        help='dist = (1 - dillution) * dist + dillution * uniform'
+    parser.add_argument('--dilution', type=float, default=0.0,
+        help='dist = (1 - dilution) * dist + dilution * uniform'
     )
 
     return parser.parse_args()
@@ -87,7 +87,7 @@ def main():
 
     empirical_dist = torch.load(args.dist)
     uniform_dist = torch.ones_like(empirical_dist) / empirical_dist.shape[0]
-    empirical_dist = empirical_dist * (1 - args.dillution) + uniform_dist * args.dillution
+    empirical_dist = empirical_dist * (1 - args.dilution) + uniform_dist * args.dilution
 
     #list_of_stationary_distributions = ['empirical_dist', 'uniform_dist', 'Markov_stationary_dist']
 
