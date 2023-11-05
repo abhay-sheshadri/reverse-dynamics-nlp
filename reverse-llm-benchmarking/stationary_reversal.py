@@ -126,7 +126,14 @@ def stationary_reverse_full_dist_suffix_calculation(
     tokenized_suffix,
     vocab_batch_size=1572,
     renormalize_dist=True,
-):
+):        
+    if len(stationary_dist.shape) == 1:
+        multiple_priors = False
+    elif len(stationary_dist.shape) == 2:
+        assert stationary_dist.shape[1] == tokenized_suffix-1
+        multiple_priors = True
+    else:
+        raise Exception("Tensor of priors is not the correct shape.")
 
     model.eval()
     stationary_dist = stationary_dist.to(device)
@@ -136,9 +143,13 @@ def stationary_reverse_full_dist_suffix_calculation(
     vector_of_logprobs = torch.zeros(suffix_length - 1, vocab_size).to(device)
 
     for i in range(suffix_length - 1):
+        if multiple_priors:
+            current_prior = stationary_dist[:, i]
+        else:
+            current_prior = stationary_dist
         vector_of_logprobs[i, :] = stationary_reverse_full_dist(
             model,
-            stationary_dist,
+            current_prior,
             1,
             tokenized_suffix[:, i + 1 :],
             vocab_batch_size=vocab_batch_size,
@@ -147,9 +158,6 @@ def stationary_reverse_full_dist_suffix_calculation(
         gc.collect()
 
     return vector_of_logprobs
-
-
-#%%
 
 # Obama_log_probs_batch = stationary_reverse_full_dist(
 #    model, empirical_dist, prefix_length, tokenized_suffix)

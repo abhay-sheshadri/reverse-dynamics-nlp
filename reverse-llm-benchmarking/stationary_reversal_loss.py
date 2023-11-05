@@ -89,6 +89,7 @@ def main():
     uniform_dist = torch.ones_like(empirical_dist) / empirical_dist.shape[0]
     empirical_dist = empirical_dist * (1 - args.dilution) + uniform_dist * args.dilution
 
+
     #list_of_stationary_distributions = ['empirical_dist', 'uniform_dist', 'Markov_stationary_dist']
 
     for dataset_name in list_of_dataset_names:
