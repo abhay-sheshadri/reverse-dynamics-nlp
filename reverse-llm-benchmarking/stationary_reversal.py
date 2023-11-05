@@ -127,10 +127,11 @@ def stationary_reverse_full_dist_suffix_calculation(
     vocab_batch_size=1572,
     renormalize_dist=True,
 ):        
+    suffix_length = tokenized_suffix.shape[1]
     if len(stationary_dist.shape) == 1:
         multiple_priors = False
     elif len(stationary_dist.shape) == 2:
-        assert stationary_dist.shape[1] == tokenized_suffix-1
+        assert stationary_dist.shape[1] == suffix_length-1
         multiple_priors = True
     else:
         raise Exception("Tensor of priors is not the correct shape.")
@@ -139,7 +140,7 @@ def stationary_reverse_full_dist_suffix_calculation(
     stationary_dist = stationary_dist.to(device)
     tokenized_suffix = tokenized_suffix.to(device)
     vocab_size = stationary_dist.shape[0]
-    suffix_length = tokenized_suffix.shape[1]
+
     vector_of_logprobs = torch.zeros(suffix_length - 1, vocab_size).to(device)
 
     for i in range(suffix_length - 1):
