@@ -69,8 +69,8 @@ def parse_arguments():
         help='dist = (1 - dilution) * dist + dilution * uniform'
     )
 
-    parser.add_argument('multiple_priors_start_idx', type=int, default=0)
-    parser.add_argument('multiple_priors_end_idx', type=int, default=0)
+    parser.add_argument('--multiple_priors_start_idx', type=int, default=0)
+    parser.add_argument('--multiple_priors_end_idx', type=int, default=0)
 
     return parser.parse_args()
 
