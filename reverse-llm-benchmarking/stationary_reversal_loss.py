@@ -69,6 +69,9 @@ def parse_arguments():
         help='dist = (1 - dilution) * dist + dilution * uniform'
     )
 
+    parser.add_argument('multiple_priors_start_idx', type=int, default=0)
+    parser.add_argument('multiple_priors_end_idx', type=int, default=0)
+
     return parser.parse_args()
 
 
@@ -86,6 +89,8 @@ def main():
     list_of_dataset_names = ['pile_val']  # ["small-pile-dedup-train", "TinyStories"]
 
     empirical_dist = torch.load(args.dist)
+    if args.multiple_priors_end_idx > 0:
+        empirical_dist = empirical_dist[:,args.multiple_priors_start_idx:args.multiple_priors_end_idx]
     uniform_dist = torch.ones_like(empirical_dist) / empirical_dist.shape[0]
     empirical_dist = empirical_dist * (1 - args.dilution) + uniform_dist * args.dilution
 
