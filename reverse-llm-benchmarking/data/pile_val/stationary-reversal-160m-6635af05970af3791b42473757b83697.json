@@ -1,0 +1,1 @@
+{"mean": 8.033674807548524, "variance": 1.9618761721335463, "std_on_mean": 0.14006699012021162, "nbatches": 100, "num_examples": 100, "prefix_length": 10, "suffix_length": 1, "num_buffer": 0, "suffix_batch_size": 1, "vocab_batch_size": 12576, "device": "cuda", "dist": "../data/distributions/pythia-160m-deduped-v0_stationary_dist.pt", "dilution": 1.0}

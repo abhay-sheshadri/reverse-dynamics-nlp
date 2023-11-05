@@ -1,0 +1,1 @@
+{"mean": 5.96704402923584, "variance": 2.3225680815739924, "std_on_mean": 0.15239974020889907, "nbatches": 100, "num_examples": 100, "prefix_length": 10, "suffix_length": 1, "num_buffer": 20, "suffix_batch_size": 1, "vocab_batch_size": 6288, "device": "cuda", "dist": "../data/distributions/pile10k_empirical.pt", "dilution": 0.0}
