@@ -126,7 +126,7 @@ def main():
             )
 
             model.eval()
-            # criterion = torch.nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)  # This is your loss function
+            criterion = torch.nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)  # This is your loss function
             losses = []
 
             with torch.no_grad():
@@ -140,7 +140,9 @@ def main():
                             input_ids,
                             vocab_batch_size=args.vocab_batch_size,
                             dilution=args.dilution,  
-                            device=device
+                            device=device,
+                            ignore_idx = tokenizer.pad_token_id,
+                            loss = criterion
                         )
                     else:
                         loss = compute_loss_reverse_dynamics(
@@ -149,7 +151,9 @@ def main():
                             input_ids,
                             vocab_batch_size=args.vocab_batch_size,
                             dilution=args.dilution,  
-                            device=device
+                            device=device,
+                            ignore_idx = tokenizer.pad_token_id,
+                            loss = criterion
                         )
                     losses.append(loss)                                    
                     

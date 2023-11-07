@@ -150,7 +150,8 @@ def compute_loss_reverse_dynamics(
     tokenized_suffix,
     vocab_batch_size=1024,
     dilution=0.0,  # 0.3
-    device="cuda"
+    device="cuda",
+    loss = F.CrossEntropyLoss()
 ):
     full_logits = []
     stationary_dist = stationary_dist.to(device)
@@ -171,7 +172,7 @@ def compute_loss_reverse_dynamics(
         full_logits = [logits,] + full_logits
             
     logits = torch.stack(full_logits).to(tokenized_suffix.device)
-    return F.cross_entropy(logits, tokenized_suffix[0, :-1]).item()
+    return loss(logits, tokenized_suffix[0, :-1]).item()
 
 
 def compute_loss_reverse_dynamics_reverse_prior(
@@ -180,7 +181,8 @@ def compute_loss_reverse_dynamics_reverse_prior(
     tokenized_suffix,
     vocab_batch_size=1024,
     dilution=0.0,  # 0.3
-    device="cuda"
+    device="cuda",
+    loss = F.CrossEntropyLoss()
 ):
     full_logits = []
     
@@ -203,4 +205,4 @@ def compute_loss_reverse_dynamics_reverse_prior(
             
     logits = torch.stack(full_logits).to(tokenized_suffix.device)
     
-    return F.cross_entropy(logits, tokenized_suffix[0, :-1]).item()
+    return loss(logits, tokenized_suffix[0, :-1]).item()
