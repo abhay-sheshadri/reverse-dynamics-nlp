@@ -151,7 +151,7 @@ def compute_loss_reverse_dynamics(
     vocab_batch_size=1024,
     dilution=0.0,  # 0.3
     device="cuda",
-    loss = F.CrossEntropyLoss()
+    loss = torch.nn.CrossEntropyLoss()
 ):
     full_logits = []
     stationary_dist = stationary_dist.to(device)
@@ -182,7 +182,7 @@ def compute_loss_reverse_dynamics_reverse_prior(
     vocab_batch_size=1024,
     dilution=0.0,  # 0.3
     device="cuda",
-    loss = F.CrossEntropyLoss()
+    loss = torch.nn.CrossEntropyLoss()
 ):
     full_logits = []
     
