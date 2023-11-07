@@ -141,7 +141,6 @@ def main():
                             vocab_batch_size=args.vocab_batch_size,
                             dilution=args.dilution,  
                             device=device,
-                            ignore_idx = tokenizer.pad_token_id,
                             loss = criterion
                         )
                     else:
@@ -152,7 +151,6 @@ def main():
                             vocab_batch_size=args.vocab_batch_size,
                             dilution=args.dilution,  
                             device=device,
-                            ignore_idx = tokenizer.pad_token_id,
                             loss = criterion
                         )
                     losses.append(loss)                                    
