@@ -112,7 +112,7 @@ def sample_reverse_dynamics_reverse_prior(
     tokenized_suffix,
     vocab_batch_size=1024,
     temperature=1.0,
-    dilution=1.0,
+    dilution=0.0,
     device="cuda"
 ):
     splus = tokenized_suffix
@@ -125,7 +125,7 @@ def sample_reverse_dynamics_reverse_prior(
         prior_dist = get_reverse_model_probs(reverse_model, splus)
         
         uniform_dist = torch.ones_like(prior_dist) / prior_dist.shape[0]
-        prior_dist = prior_dist * dilution + uniform_dist * (1-dilution)
+        prior_dist = prior_dist * (1-dilution) + uniform_dist * dilution
         
         logits = compute_posterior(
             model,
@@ -149,14 +149,14 @@ def compute_loss_reverse_dynamics(
     stationary_dist,
     tokenized_suffix,
     vocab_batch_size=1024,
-    dilution=1.0,  # 0.7
+    dilution=0.0,  # 0.3
     device="cuda"
 ):
     full_logits = []
     stationary_dist = stationary_dist.to(device)
     
     uniform_dist = torch.ones_like(stationary_dist) / stationary_dist.shape[0]
-    stationary_dist = stationary_dist * dilution + uniform_dist * (1-dilution)
+    stationary_dist = stationary_dist * (1-dilution) + uniform_dist * dilution
     
     for i in reversed(range(1, tokenized_suffix.shape[1])):
         splus = tokenized_suffix[:, i:]        
@@ -179,7 +179,7 @@ def compute_loss_reverse_dynamics_reverse_prior(
     reverse_model,
     tokenized_suffix,
     vocab_batch_size=1024,
-    dilution=1.0,  # 0.7
+    dilution=0.0,  # 0.3
     device="cuda"
 ):
     full_logits = []
@@ -190,7 +190,7 @@ def compute_loss_reverse_dynamics_reverse_prior(
         prior_dist = get_reverse_model_probs(reverse_model, splus)
         
         uniform_dist = torch.ones_like(prior_dist) / prior_dist.shape[0]
-        prior_dist = prior_dist * dilution + uniform_dist * (1-dilution)
+        prior_dist = prior_dist * (1-dilution) + uniform_dist * dilution
         
         logits = compute_posterior(
             model,
