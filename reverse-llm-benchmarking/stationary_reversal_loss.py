@@ -73,6 +73,7 @@ def parse_arguments():
 
     parser.add_argument('--multiple_priors_start_idx', type=int, default=0)
     parser.add_argument('--multiple_priors_end_idx', type=int, default=0)
+    parser.add_argument('--model_size', type=str, default='160m')
 
     return parser.parse_args()
 
@@ -84,7 +85,7 @@ def main():
     if device == 'cuda':
         print('Using gpu.')
 
-    model_sizes = ['160m'] #  ['70m', '160m', '410m']
+    model_sizes = [args.model_size] #  ['70m', '160m', '410m']
     model_names = ['EleutherAI/pythia-' + size + '-deduped-v0'
                    for size in model_sizes]
 
