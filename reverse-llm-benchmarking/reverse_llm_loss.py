@@ -16,19 +16,37 @@ from utils import create_dataset
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Process some arguments.")
+    parser = argparse.ArgumentParser(description='Process some arguments.')
 
-    parser.add_argument(
-        "--samples", type=int, default=10000, help="Number of samples to keep."
+    parser.add_argument('--num_examples', type=int, default=10,
+        help='Number of examples to run loss over.'
     )
 
-    parser.add_argument(
-        "--batch_size", type=int, default=10, help="Batch size for training."
+    parser.add_argument('--prefix_length', type=int, default=10,
+        help='Number of tokens to predict in each example.'
     )
 
-    parser.add_argument('--sample_length', type=int, default=2048,
-                      help="Where to truncate the input sequences."
+    parser.add_argument('--suffix_length', type=int, default=1,
+        help='Context length for each example.'
     )
+    
+    parser.add_argument('--num_buffer', type=int, default=0,
+        help='Where to begin the prefix.'
+    )
+    
+    parser.add_argument('--suffix_batch_size', type=int, default=1,
+        help='Batch size for loss calculation (i.e. number of suffixes).'
+    )
+
+    parser.add_argument('--device', type=str, default='cuda', choices=['cpu', 'cuda'],
+        help='Choose device: cpu or cuda'
+    )
+    parser.add_argument('--reverse_model_prior', type=bool, default=False,
+        help='Use the reverse model as a prior')
+
+    parser.add_argument('--multiple_priors_start_idx', type=int, default=0)
+    parser.add_argument('--multiple_priors_end_idx', type=int, default=0)
+    parser.add_argument('--model_size', type=str, default='160m')
 
     return parser.parse_args()
 
