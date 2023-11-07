@@ -144,6 +144,36 @@ def sample_reverse_dynamics_reverse_prior(
     return splus, torch.stack(full_logits)
 
 
+def compute_loss_reverse_dynamics(
+    model,
+    stationary_dist,
+    tokenized_suffix,
+    vocab_batch_size=1024,
+    dilution=1.0,  # 0.7
+    device="cuda"
+):
+    full_logits = []
+    stationary_dist = stationary_dist.to(device)
+    
+    uniform_dist = torch.ones_like(stationary_dist) / stationary_dist.shape[0]
+    stationary_dist = stationary_dist * dilution + uniform_dist * (1-dilution)
+    
+    for i in reversed(range(1, tokenized_suffix.shape[1])):
+        splus = tokenized_suffix[:, i:]        
+        
+        logits = compute_posterior(
+            model,
+            stationary_dist,
+            splus,
+            vocab_batch_size,
+            device
+        )
+        full_logits = [logits,] + full_logits
+            
+    logits = torch.stack(full_logits).to(tokenized_suffix.device)
+    return F.cross_entropy(logits, tokenized_suffix[0, :-1]).item()
+
+
 def compute_loss_reverse_dynamics_reverse_prior(
     model,
     reverse_model,
