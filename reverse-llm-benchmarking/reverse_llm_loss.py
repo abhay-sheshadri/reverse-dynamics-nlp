@@ -1,5 +1,6 @@
 #
 import argparse
+import hashlib
 import json
 import os
 
@@ -11,6 +12,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import (DataCollatorForLanguageModeling, GPTNeoXForCausalLM,
                           GPTNeoXTokenizerFast)
+from utils import create_dataset
 
 
 def parse_arguments():
@@ -36,94 +38,25 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     args = parse_arguments()
-    sample_size = args.samples
-    batch_size = args.batch_size
-    sample_length = args.sample_length
 
-    #
     reverse_model = GPTNeoXForCausalLM.from_pretrained(
         "afterless/reverse-pythia-160m"
     ).to(device)
 
-    #
-    # dataset = load_dataset('NeelNanda/pile-10k')
-    # dataset = dataset.map(lambda examples: {"text": examples['text'][::-1]}, batched=True)
-
-    # Load the test split of the Pile dataset
-    # dataset = load_dataset("ola13/small-the_pile-dedup", split="test")
 
     list_of_dataset_names = ["pile_val"] #["small-pile-dedup-train", "TinyStories"]
     for dataset_name in list_of_dataset_names:
-        if dataset_name == "small-pile-dedup-train":
-            #
-            # Using the Pile
-            dataset = load_dataset("ola13/small-the_pile-dedup")
-            # Concatenate all datasets in the DatasetDict
-            concatenated_dataset = concatenate_datasets([ds for ds in dataset.values()])
-            # Shuffle the concatenated dataset
-            shuffled_dataset = concatenated_dataset.shuffle(
-                seed=42
-            )  # You can set your desired seed
-
-            # Take a sample. For example, if you want a sample of 10,000 rows:
-            sampled_dataset = shuffled_dataset.select(range(sample_size))
-            dataset = sampled_dataset
-        elif dataset_name == "TinyStories":
-            # Using the Tiny Stories Data Set
-            dataset = load_dataset("roneneldan/TinyStories", split="validation")
-            dataset = dataset.select(range(sample_size))
-        elif dataset_name == "pile_val":
-            dataset = load_dataset("json", data_files="data/val.jsonl")
-            dataset = dataset["train"].select(range(sample_size))
-
-        #
         tokenizer = GPTNeoXTokenizerFast.from_pretrained("EleutherAI/gpt-neox-20b")
-
-        #
-
         tokenizer.pad_token = tokenizer.eos_token
-
-        def reverse_text(example):
-            return {
-                "input_ids": tokenizer.encode(
-                    example["text"][::-1],
-                    truncation=True,
-                    padding="max_length",
-                    max_length=sample_length,
-                    return_tensors="pt",
-                ).squeeze(0)
-            }
-        
-        def reverse_text_after_truncate(example):
-          truncated_text = tokenizer.encode(
-                              example["text"],
-                              truncation=True,
-                              padding="max_length",
-                              max_length=sample_length,
-                              return_tensors="pt",
-                            ).squeeze(0)
-          return {
-              "input_ids": truncated_text.flip(dims=[0])  
-          }
-
-        tokenized_dataset = dataset.map(reverse_text_after_truncate)
-
-        all_columns = tokenized_dataset.column_names
-
-        columns_to_remove = [column for column in all_columns if column != "input_ids"]
-
-        tokenized_dataset = tokenized_dataset.remove_columns(columns_to_remove)
-        # test reversal: tokenizer.decode(tokenized_dataset["input_ids"][0])
-
-        data_collator = DataCollatorForLanguageModeling(
-            tokenizer=tokenizer, mlm=False, return_tensors="pt"
-        )
-
-        dataloader = DataLoader(
-            tokenized_dataset,
-            shuffle=True,
-            collate_fn=data_collator,
-            batch_size=batch_size,
+        dataloader = create_dataset(
+            dataset_name=dataset_name,
+            tokenizer=tokenizer,
+            num_examples=args.num_examples,
+            prefix_length=args.prefix_length,
+            suffix_length=args.suffix_length,
+            num_buffer=args.num_buffer,
+            suffix_batch_size=args.suffix_batch_size,
+            seed=42
         )
 
         reverse_model.eval()
@@ -132,8 +65,9 @@ def main():
 
         with torch.no_grad():
             for batch in tqdm(dataloader, desc="Computing loss"):
-                input_ids = batch["input_ids"][:, :-1].to(device)
-                targets = batch["input_ids"][:, 1:].to(device)
+                reversed_input_ids = batch["input_ids"].flip(dims=[1]).to(device)
+                input_ids = reversed_input_ids["input_ids"][:, :-1]
+                targets = reversed_input_ids["input_ids"][:, 1:]
 
                 outputs = reverse_model(input_ids=input_ids)
                 logits = outputs.logits
@@ -150,23 +84,23 @@ def main():
         nbatches = len(dataloader)
 
         data = {
-            "mean": loss_mean,
-            "variance": loss_variance,
-            "std_on_mean": np.std(loss_array) / np.sqrt(nbatches),
-            "total_samples": sample_size,
-            "batch_size": batch_size,
-            "nbatches": nbatches,
-            "sample_length": sample_length
+            'mean': loss_mean,
+            'variance': loss_variance,
+            'std_on_mean': np.std(loss_array) / np.sqrt(nbatches),
+            'nbatches': nbatches,
         }
+        args_dict = vars(args)
+        data.update(args_dict)
 
-        directory = "data/" + dataset_name
+        directory = 'data/' + dataset_name
         if not os.path.exists(directory):
             os.makedirs(directory)
+            
+        dict_str = json.dumps(data, sort_keys=True)
+        hash_obj = hashlib.md5(dict_str.encode())
 
-        with open(directory + "/reverse-160m-loss"+"-samplelength-"+str(sample_length)+".json", "w") as f:
+        with open(f"{directory}/reverse-model-160m-{hash_obj.hexdigest()}.json", 'w') as f:
             json.dump(data, f)
-
-        # np.save(directory+"/reverse-loss-samples.npy", loss_array)
 
 if __name__ == "__main__":
     main()

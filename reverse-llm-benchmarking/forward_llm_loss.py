@@ -1,5 +1,6 @@
 #
 import argparse
+import hashlib
 import json
 import os
 
@@ -11,6 +12,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import (DataCollatorForLanguageModeling, GPTNeoXForCausalLM,
                           GPTNeoXTokenizerFast)
+from utils import create_dataset
 
 
 #
@@ -47,83 +49,26 @@ def main():
     list_of_dataset_names = ["pile_val"] #["small-pile-dedup-train", "TinyStories"]
 
     for dataset_name in list_of_dataset_names:
-        if dataset_name == "small-pile-dedup-train":
-            # Using the Pile
-            dataset = load_dataset("ola13/small-the_pile-dedup")
-            # Concatenate all datasets in the DatasetDict
-            concatenated_dataset = concatenate_datasets([ds for ds in dataset.values()])
-            # Shuffle the concatenated dataset
-            shuffled_dataset = concatenated_dataset.shuffle(
-                seed=42
-            )  # You can set your desired seed
-
-            sampled_dataset = shuffled_dataset.select(range(sample_size))
-            dataset = sampled_dataset
-        elif dataset_name == "TinyStories":
-            # Using the Tiny Stories Data Set
-            dataset = load_dataset("roneneldan/TinyStories", split="validation")
-            dataset = dataset.select(range(sample_size))
-        elif dataset_name == "pile_val":
-            dataset = load_dataset("json", data_files="data/val.jsonl")
-            dataset = dataset["train"].select(range(sample_size))
-
-        # min_length_over_dataset = min([len(example["text"]) for example in dataset])
-
         for (model_name, model_size) in zip(model_names, model_sizes):
             model = GPTNeoXForCausalLM.from_pretrained(model_name).to(device)
-
             tokenizer = GPTNeoXTokenizerFast.from_pretrained("EleutherAI/gpt-neox-20b")
-
             tokenizer.pad_token = tokenizer.eos_token
 
-            def tokenize_text(example):
-                return {
-                    "input_ids": tokenizer.encode(
-                        example["text"],
-                        truncation=True,
-                        padding="max_length",
-                        max_length=sample_length,
-                        return_tensors="pt",
-                    ).squeeze(0)
-                }
-
-            tokenized_dataset = dataset.map(tokenize_text)
-
-            # Get all column names
-            all_columns = tokenized_dataset.column_names
-
-            # Find columns to remove
-            columns_to_remove = [
-                column for column in all_columns if column != "input_ids"
-            ]
-
-            # Remove unwanted columns
-            tokenized_dataset = tokenized_dataset.remove_columns(columns_to_remove)
-
-            # Debug
-            # first_array = np.array(tokenized_dataset["input_ids"])
-            # # max_occuring_token = max(tokenized_dataset["input_ids"], key=tokenized_dataset["input_ids"].count)
-            # num_zeros = np.count_nonzero(first_array == 0)
-            # num_nonzeros = np.count_nonzero(first_array != 0)
-            # print(num_zeros/(num_zeros + num_nonzeros))
-
-            # Use DataCollator to handle padding during training
-            data_collator = DataCollatorForLanguageModeling(
-                tokenizer=tokenizer, mlm=False, return_tensors="pt"
-            )
-
-            # Convert dataset to DataLoader for batch processing
-            dataloader = DataLoader(
-                tokenized_dataset,
-                shuffle=True,
-                collate_fn=data_collator,
-                batch_size=batch_size,
+            dataloader = create_dataset(
+                dataset_name=dataset_name,
+                tokenizer=tokenizer,
+                num_examples=args.num_examples,
+                prefix_length=args.prefix_length,
+                suffix_length=args.suffix_length,
+                num_buffer=args.num_buffer,
+                suffix_batch_size=args.suffix_batch_size,
+                seed=42
             )
 
             model.eval()
             criterion = torch.nn.CrossEntropyLoss(
                 ignore_index=tokenizer.pad_token_id
-            )  # This is your loss function
+            )  
             losses = []
 
             with torch.no_grad():
@@ -146,24 +91,24 @@ def main():
             nbatches = len(dataloader)
 
             data = {
-                "mean": loss_mean,
-                "variance": loss_variance,
-                "std_on_mean": np.std(loss_array) / np.sqrt(nbatches),
-                "total_samples": sample_size,
-                "batch_size": batch_size,
-                "nbatches": nbatches,
-                "sample_length": sample_length
-            }
+                    'mean': loss_mean,
+                    'variance': loss_variance,
+                    'std_on_mean': np.std(loss_array) / np.sqrt(nbatches),
+                    'nbatches': nbatches,
+                    }
+            args_dict = vars(args)
+            data.update(args_dict)
 
-            directory = "data/" + dataset_name
+            directory = 'data/' + dataset_name
             if not os.path.exists(directory):
                 os.makedirs(directory)
+                
+            dict_str = json.dumps(data, sort_keys=True)
+            hash_obj = hashlib.md5(dict_str.encode())
 
-            with open(directory + "/forwards-" + model_size + "-loss"+"-samplelength-"+str(sample_length)+".json", "w") as f:
+            with open(f"{directory}/forwards-model-{model_size}-{hash_obj.hexdigest()}.json", 'w') as f:
                 json.dump(data, f)
-
-            # np.save(directory+"/forwards-" + model_size + "-loss-samples.npy", loss_array)
-
 
 if __name__ == "__main__":
     main()
+    

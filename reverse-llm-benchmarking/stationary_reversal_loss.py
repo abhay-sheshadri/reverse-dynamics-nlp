@@ -181,8 +181,5 @@ def main():
             with open(f"{directory}/stationary-reversal-{model_size}-{hash_obj.hexdigest()}.json", 'w') as f:
                 json.dump(data, f)
 
-
-      # np.save(directory+"/stationary-reversal-" + model_size + "-loss-samples.npy", loss_array)
-
 if __name__ == '__main__':
     main()
