@@ -84,8 +84,8 @@ def main():
         with torch.no_grad():
             for batch in tqdm(dataloader, desc="Computing loss"):
                 reversed_input_ids = batch["input_ids"].flip(dims=[1]).to(device)
-                input_ids = reversed_input_ids["input_ids"][:, :-1]
-                targets = reversed_input_ids["input_ids"][:, 1:]
+                input_ids = reversed_input_ids[:, :-1]
+                targets = reversed_input_ids[:, 1:]
 
                 outputs = reverse_model(input_ids=input_ids)
                 logits = outputs.logits
