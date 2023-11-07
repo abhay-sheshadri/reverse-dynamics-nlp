@@ -16,7 +16,7 @@ def create_dataset(
 ):
           
     # Check that the dataset is in the list of valid datasets
-    list_of_dataset_names = ["pile_val", "small-pile-dedup-train", "TinyStories"]
+    list_of_dataset_names = ["pile_val", "small-pile-dedup-train", "TinyStories", "DebugDataSet"]
     assert dataset_name in list_of_dataset_names
     
     if dataset_name == 'small-pile-dedup-train':
@@ -35,6 +35,10 @@ def create_dataset(
         dataset = dataset.select(range(num_examples))
     elif dataset_name == 'pile_val':
         dataset = load_dataset('json', data_files='data/val.jsonl')
+        dataset = dataset.shuffle(seed=seed)
+        dataset = dataset['train'].select(range(num_examples))
+    elif dataset_name == 'DebugDataSet':
+        dataset = load_dataset('json', data_files='data/DebugDataSet.jsonl')
         dataset = dataset.shuffle(seed=seed)
         dataset = dataset['train'].select(range(num_examples))
 
