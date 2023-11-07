@@ -1,6 +1,7 @@
 import math
 
 import torch
+import torch.nn.functional as F
 from tqdm import tqdm
 
 
@@ -54,7 +55,7 @@ def compute_posterior(
         posterior.append(get_logprob(v_sentences, model, stationary_dist))
     
     posterior = torch.cat(posterior)
-    return posterior
+    return F.log_softmax(posterior, dim=-1)
 
 
 def sample_with_temp(logits, temperature):
@@ -96,3 +97,80 @@ def sample_reverse_dynamics(
         splus = torch.cat((p.unsqueeze(0).unsqueeze(0), splus), dim=-1)
         
     return splus, torch.stack(full_logits)
+
+
+def get_reverse_model_probs(reverse_model, input_ids):
+    input_ids = torch.flip(input_ids, (1,))
+    outputs = reverse_model(input_ids).logits[0,-1,:]
+    return F.softmax(outputs, dim=-1)
+
+
+def sample_reverse_dynamics_reverse_prior(
+    model,
+    reverse_model,
+    prefix_length,
+    tokenized_suffix,
+    vocab_batch_size=1024,
+    temperature=1.0,
+    dilution=1.0,
+    device="cuda"
+):
+    splus = tokenized_suffix
+    full_logits = []
+    
+    for i in range(prefix_length):
+        
+        # print(tokenizer.decode(splus))
+
+        prior_dist = get_reverse_model_probs(reverse_model, splus)
+        
+        uniform_dist = torch.ones_like(prior_dist) / prior_dist.shape[0]
+        prior_dist = prior_dist * dilution + uniform_dist * (1-dilution)
+        
+        logits = compute_posterior(
+            model,
+            prior_dist,
+            splus,
+            vocab_batch_size,
+            device
+        )
+        full_logits = [logits,] + full_logits
+        p = sample_with_temp(
+            logits,
+            temperature
+        )
+        splus = torch.cat((p.unsqueeze(0).unsqueeze(0), splus), dim=-1)
+        
+    return splus, torch.stack(full_logits)
+
+
+def compute_loss_reverse_dynamics_reverse_prior(
+    model,
+    reverse_model,
+    tokenized_suffix,
+    vocab_batch_size=1024,
+    dilution=1.0,  # 0.7
+    device="cuda"
+):
+    full_logits = []
+    
+    for i in reversed(range(1, tokenized_suffix.shape[1])):
+        splus = tokenized_suffix[:, i:]
+
+        prior_dist = get_reverse_model_probs(reverse_model, splus)
+        
+        uniform_dist = torch.ones_like(prior_dist) / prior_dist.shape[0]
+        prior_dist = prior_dist * dilution + uniform_dist * (1-dilution)
+        
+        logits = compute_posterior(
+            model,
+            prior_dist,
+            splus,
+            vocab_batch_size,
+            device
+        )
+        full_logits = [logits,] + full_logits
+            
+    logits = torch.stack(full_logits).to(tokenized_suffix.device)
+    
+    return F.cross_entropy(logits, tokenized_suffix[0, :-1]).item()
