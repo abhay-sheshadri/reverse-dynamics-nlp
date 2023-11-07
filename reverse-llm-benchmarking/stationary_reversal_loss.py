@@ -61,13 +61,15 @@ def parse_arguments():
         help='Choose device: cpu or cuda'
     )
     
-    parser.add_argument('--dist', type=str, required=True,
+    parser.add_argument('--dist', type=str, required=False,
         help='Path to the distribution file'
     )
     
     parser.add_argument('--dilution', type=float, default=0.0,
         help='dist = (1 - dilution) * dist + dilution * uniform'
     )
+    parser.add_argument('--reverse_model_prior', type=bool, default=False,
+        help='Use the reverse model as a prior')
 
     parser.add_argument('--multiple_priors_start_idx', type=int, default=0)
     parser.add_argument('--multiple_priors_end_idx', type=int, default=0)
@@ -88,12 +90,14 @@ def main():
 
     list_of_dataset_names = ['pile_val']  # ["small-pile-dedup-train", "TinyStories"]
 
-    empirical_dist = torch.load(args.dist)
-    if args.multiple_priors_end_idx > 0:
-        empirical_dist = empirical_dist[:,args.multiple_priors_start_idx:args.multiple_priors_end_idx]
-    uniform_dist = torch.ones_like(empirical_dist) / empirical_dist.shape[0]
-    empirical_dist = empirical_dist * (1 - args.dilution) + uniform_dist * args.dilution
-
+    if args.reverse_model_prior:
+        reverse_model = GPTNeoXForCausalLM.from_pretrained(
+            "afterless/reverse-pythia-160m"
+        ).to(device)
+    else:
+        empirical_dist = torch.load(args.dist)
+        if args.multiple_priors_end_idx > 0:
+            empirical_dist = empirical_dist[:,args.multiple_priors_start_idx:args.multiple_priors_end_idx]
 
     #list_of_stationary_distributions = ['empirical_dist', 'uniform_dist', 'Markov_stationary_dist']
 
@@ -121,42 +125,33 @@ def main():
             )
 
             model.eval()
-            criterion = torch.nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)  # This is your loss function
+            # criterion = torch.nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)  # This is your loss function
             losses = []
 
             with torch.no_grad():
                 for batch in tqdm(dataloader, desc='Computing loss'):
                     input_ids = batch['input_ids'].to(device)
-                    targets = batch['input_ids'][:, :-1].to(device)
 
-                    print(input_ids.shape)
-
-                    # I assume it is fine to cross entropy with logprobs versus logits it's all the same
-                    logits = sr.stationary_reverse_full_dist_suffix_calculation(
-                        model,
-                        empirical_dist,
-                        input_ids,
-                        vocab_batch_size=args.vocab_batch_size,
-                        renormalize_dist=True
-                    )
+                    if args.reverse_model_prior:
+                        loss = compute_loss_reverse_dynamics_reverse_prior(
+                            model,
+                            reverse_model,
+                            input_ids,
+                            vocab_batch_size=args.vocab_batch_size,
+                            dilution=args.dilution,  
+                            device=device
+                        )
+                    else:
+                        loss = compute_loss_reverse_dynamics(
+                            model,
+                            empirical_dist,
+                            input_ids,
+                            vocab_batch_size=args.vocab_batch_size,
+                            dilution=args.dilution,  
+                            device=device
+                        )
+                    losses.append(loss)                                    
                     
-                    """
-                    _, logits = sample_reverse_dynamics(
-                        model=model,
-                        stationary_dist=empirical_dist,
-                        prefix_length=sample_length,
-                        tokenized_suffix=input_ids,
-                        vocab_batch_size=1024,
-                        temperature=0.7,
-                        device=device
-                    )
-                    """
-
-                    # logits = rearrange(logits, 'b n c -> (b n) c')
-                    targets = rearrange(targets, 'b n -> (b n)')
-
-                    loss = criterion(logits, targets)
-                    losses.append(loss.item())
 
             loss_array = np.array(losses)
             loss_mean = np.mean(loss_array)
