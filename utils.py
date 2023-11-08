@@ -142,26 +142,6 @@ class SampleTopTokens(LogitsProcessor):
         return scores
 
 
-def get_token_probabilities(tokenizer, dataset="NeelNanda/pile-10k", vocab_size=50304, split='train'):
-    if type(dataset)==str:
-        data = load_dataset(dataset)
-    else:
-        data = dataset
-    counts = torch.zeros(vocab_size, dtype=torch.float) #tokenizer.vocab_size is fake 50304 is the model output dimension which is what we care about
-
-    for chunk in data[split]:
-        text = chunk['text']
-        tokens = tokenizer(text, return_tensors="pt").input_ids[0]
-        token_counts = torch.bincount(tokens, minlength=counts.size(0))
-        counts += token_counts
-
-    total_tokens = torch.sum(counts)
-    probabilities = counts / total_tokens
-    min_val = probabilities[probabilities > 0].min()
-    probabilities[probabilities == 0] = min_val
-    return probabilities
-
-
 def get_pos_token_probabilities(tokenizer, dataset="NeelNanda/pile-10k", vocab_size=50304, split='train', prefix=10, prev_counts=None):
     if type(dataset) == str:
         data = load_dataset(dataset)
@@ -228,6 +208,28 @@ def get_pos_token_probabilities_pandas(tokenizer, dataset, vocab_size=50304, pre
                 continue
         for t,token in enumerate(tokens):
             counts[token,t] += 1
+    return counts
+
+
+def get_token_probabilities_pandas(tokenizer, dataset="NeelNanda/pile-10k", vocab_size=50304, split='train', prev_counts=None):
+    # if type(dataset)==str:
+    #     data = load_dataset(dataset)
+    # else:
+    data = dataset
+    if prev_counts is None:
+        counts = torch.zeros(vocab_size, dtype=torch.float) #tokenizer.vocab_size is fake 50304 is the model output dimension which is what we care about
+    else:
+        counts = prev_counts
+    for chunk in data:
+        text = chunk[1]
+        tokens = tokenizer(text, return_tensors="pt").input_ids[0]
+        token_counts = torch.bincount(tokens.type(torch.long), minlength=counts.size(0))
+        counts += token_counts
+
+    # total_tokens = torch.sum(counts)
+    # probabilities = counts / total_tokens
+    # min_val = probabilities[probabilities > 0].min()
+    # probabilities[probabilities == 0] = min_val
     return counts
 
 

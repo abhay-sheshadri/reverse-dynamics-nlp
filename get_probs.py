@@ -15,9 +15,10 @@ def process_file(i):
     
     for c,chunk in enumerate(json_reader):
         print(c)
-        prev_counts = get_pos_token_probabilities_pandas(tokenizer, dataset=chunk.itertuples(), prefix=10, prev_counts=prev_counts)
+        prev_counts = get_pos_token_probabilities_pandas(tokenizer, dataset=chunk.itertuples(), prefix=30, prev_counts=prev_counts)
     
-    with open(f'/home/jp6263/reverse-dynamics-nlp/pos_counts_10_{num}.pt', 'wb') as f:
+    with open(f'/home/jp6263/reverse-dynamics-nlp/pos_counts_30_{num}.pt', 'wb') as f:
         torch.save(prev_counts, f)
+    # return prev_counts
 
-Parallel(n_jobs=-1)(delayed(process_file)(i) for i in range(20,30))
+Parallel(n_jobs=-1)(delayed(process_file)(i) for i in range(0,10))
