@@ -64,7 +64,9 @@ def main():
 
     for dataset_name in list_of_dataset_names:
         for (model_name, model_size) in zip(model_names, model_sizes):
-            model = GPTNeoXForCausalLM.from_pretrained(model_name, revision="step3000").to(device)
+            model = GPTNeoXForCausalLM.from_pretrained(model_name, 
+                                                       revision="step3000",
+                                                       device_map="auto").to(device)
             tokenizer = GPTNeoXTokenizerFast.from_pretrained("EleutherAI/gpt-neox-20b")
             tokenizer.pad_token = tokenizer.eos_token
 
