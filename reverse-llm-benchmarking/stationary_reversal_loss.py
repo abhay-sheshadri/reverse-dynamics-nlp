@@ -89,8 +89,8 @@ def main():
     model_names = ['EleutherAI/pythia-' + size + '-deduped'
                    for size in model_sizes]
 
-    # list_of_dataset_names = ['pile_val']  # ["small-pile-dedup-train", "TinyStories"]
-    list_of_dataset_names = ['DebugDataSet']  # ["small-pile-dedup-train", "TinyStories"]
+    list_of_dataset_names = ['pile_val']  # ["small-pile-dedup-train", "TinyStories"]
+    # list_of_dataset_names = ['DebugDataSet']  # ["small-pile-dedup-train", "TinyStories"]
 
     if args.reverse_model_prior:
         reverse_model = GPTNeoXForCausalLM.from_pretrained(
