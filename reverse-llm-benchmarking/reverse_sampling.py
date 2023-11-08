@@ -155,12 +155,25 @@ def compute_loss_reverse_dynamics(
 ):
     full_logits = []
     stationary_dist = stationary_dist.to(device)
+    suffix_length = tokenized_suffix.shape[1]
+    if len(stationary_dist.shape) == 1:
+        multiple_priors = False
+    elif len(stationary_dist.shape) == 2:
+        assert stationary_dist.shape[1] == suffix_length-1
+        multiple_priors = True
+    else:
+        raise Exception("Tensor of priors is not the correct shape.")
     
     uniform_dist = torch.ones_like(stationary_dist) / stationary_dist.shape[0]
     stationary_dist = stationary_dist * (1-dilution) + uniform_dist * dilution
     
     for i in reversed(range(1, tokenized_suffix.shape[1])):
-        splus = tokenized_suffix[:, i:]        
+        splus = tokenized_suffix[:, i:] 
+
+        if multiple_priors:   
+            current_prior = stationary_dist[:, i-1]
+        else:   
+            current_prior = stationary_dist
         
         logits = compute_posterior(
             model,
