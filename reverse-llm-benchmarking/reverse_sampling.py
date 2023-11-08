@@ -177,7 +177,7 @@ def compute_loss_reverse_dynamics(
         
         logits = compute_posterior(
             model,
-            stationary_dist,
+            current_prior,
             splus,
             vocab_batch_size,
             device
