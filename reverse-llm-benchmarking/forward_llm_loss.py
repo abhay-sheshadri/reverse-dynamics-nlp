@@ -58,7 +58,7 @@ def main():
 
     args = parse_arguments()
     model_sizes = ["70m", "160m", "410m"]
-    model_names = ["EleutherAI/pythia-" + size + "-deduped-v0" for size in model_sizes]
+    model_names = ["EleutherAI/pythia-" + size + "-deduped" for size in model_sizes]
 
     list_of_dataset_names = ["pile_val"] #["small-pile-dedup-train", "TinyStories"]
 
