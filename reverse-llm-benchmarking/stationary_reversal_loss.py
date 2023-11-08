@@ -61,7 +61,7 @@ def parse_arguments():
         help='Choose device: cpu or cuda'
     )
     
-    parser.add_argument('--dist', type=str, required=False,
+    parser.add_argument('--dist', type=str, default="../data/pile10k_empirical.pt",
         help='Path to the distribution file'
     )
     
@@ -86,7 +86,7 @@ def main():
         print('Using gpu.')
 
     model_sizes = [args.model_size] #  ['70m', '160m', '410m']
-    model_names = ['EleutherAI/pythia-' + size + '-deduped-v0'
+    model_names = ['EleutherAI/pythia-' + size + '-deduped'
                    for size in model_sizes]
 
     # list_of_dataset_names = ['pile_val']  # ["small-pile-dedup-train", "TinyStories"]
@@ -163,6 +163,8 @@ def main():
             nbatches = len(dataloader)
 
             data = {
+                'name': "stationary_reversal",
+                'dataset' : dataset_name,
                 'mean': loss_mean,
                 'variance': loss_variance,
                 'std_on_mean': np.std(loss_array) / np.sqrt(nbatches),

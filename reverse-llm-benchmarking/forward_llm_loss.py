@@ -34,7 +34,7 @@ def parse_arguments():
     parser.add_argument('--num_buffer', type=int, default=0,
         help='Where to begin the prefix.'
     )
-    
+
     parser.add_argument('--suffix_batch_size', type=int, default=1,
         help='Batch size for loss calculation (i.e. number of suffixes).'
     )
@@ -105,6 +105,8 @@ def main():
             nbatches = len(dataloader)
 
             data = {
+                    'name': "forwards-"+model_size,
+                    'dataset' : dataset_name,
                     'mean': loss_mean,
                     'variance': loss_variance,
                     'std_on_mean': np.std(loss_array) / np.sqrt(nbatches),
@@ -120,7 +122,7 @@ def main():
             dict_str = json.dumps(data, sort_keys=True)
             hash_obj = hashlib.md5(dict_str.encode())
 
-            with open(f"{directory}/forwards-model-{model_size}-{hash_obj.hexdigest()}.json", 'w') as f:
+            with open(f"{directory}/forwards-{model_size}-{hash_obj.hexdigest()}.json", 'w') as f:
                 json.dump(data, f)
 
 if __name__ == "__main__":

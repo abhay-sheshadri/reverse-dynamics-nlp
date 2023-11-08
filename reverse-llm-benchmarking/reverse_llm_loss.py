@@ -102,6 +102,8 @@ def main():
         nbatches = len(dataloader)
 
         data = {
+            'name': "reverse-160m",
+            'dataset' : dataset_name,
             'mean': loss_mean,
             'variance': loss_variance,
             'std_on_mean': np.std(loss_array) / np.sqrt(nbatches),
@@ -117,7 +119,7 @@ def main():
         dict_str = json.dumps(data, sort_keys=True)
         hash_obj = hashlib.md5(dict_str.encode())
 
-        with open(f"{directory}/reverse-model-160m-{hash_obj.hexdigest()}.json", 'w') as f:
+        with open(f"{directory}/reverse-160m-{hash_obj.hexdigest()}.json", 'w') as f:
             json.dump(data, f)
 
 if __name__ == "__main__":
