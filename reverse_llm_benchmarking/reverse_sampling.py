@@ -60,7 +60,7 @@ def compute_posterior(
 
 def sample_with_temp(logits, temperature):
     if temperature == 0:
-        p = distribution.argmax()
+        p = logits.argmax()
     else:
         p = torch.distributions.Categorical(
             logits = logits / temperature
