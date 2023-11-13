@@ -40,6 +40,7 @@ def parse_arguments():
     parser.add_argument('--seed', type=int, default=42,
         help='Random seed.'
     )
+    parser.add_argument('--filename_prefix', type=str, default="")
 
     parser.add_argument('--model_size', type=str, default='160m')
 
@@ -124,7 +125,7 @@ def main():
     dict_str = json.dumps(data, sort_keys=True)
     hash_obj = hashlib.md5(dict_str.encode())
 
-    with open(f"{directory}/forwards-{args.model_size}-{hash_obj.hexdigest()}.json", 'w') as f:
+    with open(f"{directory}/{args.filename_prefix}forwards-{args.model_size}-{hash_obj.hexdigest()}.json", 'w') as f:
         json.dump(data, f)
 
 if __name__ == "__main__":

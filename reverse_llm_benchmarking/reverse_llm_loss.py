@@ -39,6 +39,7 @@ def parse_arguments():
     parser.add_argument('--seed', type=int, default=42,
         help='Random seed.'
     )
+    parser.add_argument('--filename_prefix', type=str, default="")
 
     return parser.parse_args()
 
@@ -120,7 +121,7 @@ def main():
     dict_str = json.dumps(data, sort_keys=True)
     hash_obj = hashlib.md5(dict_str.encode())
 
-    with open(f"{directory}/reverse-160m-{hash_obj.hexdigest()}.json", 'w') as f:
+    with open(f"{directory}/{args.filename_prefix}reverse-160m-{hash_obj.hexdigest()}.json", 'w') as f:
         json.dump(data, f)
 
 if __name__ == "__main__":

@@ -1,12 +1,13 @@
 #!/bin/bash
-python reversal_loss.py --num_examples 3 --prefix_length 2 --reverse_model_prior true 
-python reversal_loss.py --num_examples 3 --prefix_length 2 --reverse_model_prior true --model_size "410m"
-python reversal_loss.py --num_examples 3 --prefix_length 2 --reverse_model_prior true --model_size "1B"
 
-python reverse_llm_loss.py --num_examples 3 --prefix_length 2 
-python forward_llm_loss.py --num_examples 3 --prefix_length 2 --model_size "160m"
-python forward_llm_loss.py --num_examples 3 --prefix_length 2 --model_size "410m"
-python forward_llm_loss.py --num_examples 3 --prefix_length 2 --model_size "1B"
+python reversal_loss.py --num_examples 3 --prefix_length 2 --reverse_model_prior true --filename_prefix "test-11-12-" 
+python reversal_loss.py --num_examples 3 --prefix_length 2 --reverse_model_prior true --model_size "410m" --filename_prefix "test-11-12-"
+python reversal_loss.py --num_examples 3 --prefix_length 2 --reverse_model_prior true --model_size "1B" --filename_prefix "test-11-12-"
+
+python reverse_llm_loss.py --num_examples 3 --prefix_length 2 --filename_prefix "test-11-12-"
+python forward_llm_loss.py --num_examples 3 --prefix_length 2 --model_size "160m" --filename_prefix "test-11-12-"
+python forward_llm_loss.py --num_examples 3 --prefix_length 2 --model_size "410m" --filename_prefix "test-11-12-"
+python forward_llm_loss.py --num_examples 3 --prefix_length 2 --model_size "1B" --filename_prefix "test-11-12-"
 
 
 
