@@ -219,3 +219,36 @@ def compute_loss_reverse_dynamics_reverse_prior(
     logits = torch.stack(full_logits).to(tokenized_suffix.device)
     
     return loss(logits, tokenized_suffix[0, :-1]).item()
+
+
+def compute_loss_reverse_dynamics_reverse_prior_target_memory(
+    model,
+    reverse_model,
+    tokenized_suffix,
+    target_memory = 10.0, # in gigabytes 
+    dilution=0.0,  # 0.3
+    device="cuda",
+    loss = torch.nn.CrossEntropyLoss()
+):
+    full_logits = []
+    
+    for i in reversed(range(1, tokenized_suffix.shape[1])):
+        splus = tokenized_suffix[:, i:]
+
+        prior_dist = get_reverse_model_probs(reverse_model, splus)
+        
+        uniform_dist = torch.ones_like(prior_dist) / prior_dist.shape[0]
+        prior_dist = prior_dist * (1-dilution) + uniform_dist * dilution
+        
+        logits = compute_posterior(
+            model,
+            prior_dist,
+            splus,
+            math.ceil(target_memory/((tokenized_suffix.shape[1]-i)*(50304))),
+            device
+        )
+        full_logits = [logits,] + full_logits
+            
+    logits = torch.stack(full_logits).to(tokenized_suffix.device)
+    
+    return loss(logits, tokenized_suffix[0, :-1]).item()
