@@ -3,10 +3,10 @@ python reversal_loss.py --num_examples 3 --prefix_length 2 --reverse_model_prior
 python reversal_loss.py --num_examples 3 --prefix_length 2 --reverse_model_prior true --model_size "410m"
 python reversal_loss.py --num_examples 3 --prefix_length 2 --reverse_model_prior true --model_size "1B"
 
-python reverse_llm_loss.py --num_examples 3 
-python forward_llm_loss.py --num_examples 3  --model_size "160m"
-python forward_llm_loss.py --num_examples 3  --model_size "410m"
-python forward_llm_loss.py --num_examples 3  --model_size "1B"
+python reverse_llm_loss.py --num_examples 3 --prefix_length 2 
+python forward_llm_loss.py --num_examples 3 --prefix_length 2 --model_size "160m"
+python forward_llm_loss.py --num_examples 3 --prefix_length 2 --model_size "410m"
+python forward_llm_loss.py --num_examples 3 --prefix_length 2 --model_size "1B"
 
 
 
