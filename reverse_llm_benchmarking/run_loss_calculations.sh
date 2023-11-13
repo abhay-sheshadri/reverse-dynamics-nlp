@@ -1,38 +1,41 @@
 #!/bin/bash
 
 # Comparing LMs
-# prefix_length=10
-# num_examples_reversal=2
-# num_examples_models=2
-# filename_prefix=test_run_
-# dataset_name=DebugDataSet
-# seed=5491
-# device=cpu
+prefix_length=2047
+num_examples_models=1000
+filename_prefix=full_run_11_13_2023_
+dataset_name=pile_val
+seed=5491
+device=cuda
 
 
-# python reverse_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device
-# python forward_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --model_size "160m" --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device
-# python forward_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --model_size "410m" --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device
-# python forward_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --model_size "1B" --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device
+python reverse_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device
+python forward_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --model_size "70m" --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device
+python forward_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --model_size "160m" --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device
+python forward_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --model_size "410m" --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device
+python forward_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --model_size "1B" --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device
 
 
 # With Reversal
 prefix_length=29
-num_examples_reversal=2
-num_examples_models=2
-filename_prefix=test_run_
-dataset_name=DebugDataSet
+num_examples_reversal=50
+num_examples_models=1000
+filename_prefix=full_run_11_13_2023_
+dataset_name=pile_val
 seed=5491
-device=cpu
+device=cuda
+full_data_set_chunk=false
 
 # Reversal
-python reversal_loss.py --num_examples $num_examples_reversal --prefix_length $prefix_length --reverse_model_prior false --dist "../data/distributions/probs_30.pt" --multiple_prior_start_idx 0 --multiple_prior_end_idx 28 --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device
-# python reverse_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device
-# python forward_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --model_size "160m" --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device
-# #python forward_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --model_size "410m" --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device
-# #python forward_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --model_size "1B" --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device
-# python reversal_loss.py --num_examples $num_examples_reversal --prefix_length $prefix_length --reverse_model_prior false --dist "../data/distributions/pile_empirical.pt" --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device
-# python reversal_loss.py --num_examples $num_examples_reversal --prefix_length $prefix_length --reverse_model_prior true --model_size "410m" --filename_prefix $filename_prefix  --dataset_name $dataset_name --seed $seed --device $device
+python reversal_loss.py --num_examples $num_examples_reversal --prefix_length $prefix_length --reverse_model_prior false --dist "../data/distributions/probs_30.pt" --multiple_priors_start_idx 0 --multiple_priors_end_idx 28 --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device --full_data_set_chunk $full_data_set_chunk --model_size 70m
+python reversal_loss.py --num_examples $num_examples_reversal --prefix_length $prefix_length --reverse_model_prior false --dist "../data/distributions/probs_30.pt" --multiple_priors_start_idx 0 --multiple_priors_end_idx 28 --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device --full_data_set_chunk $full_data_set_chunk --model_size 160m
+python reverse_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device --full_data_set_chunk $full_data_set_chunk
+python forward_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --model_size "70m" --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device --full_data_set_chunk $full_data_set_chunk
+python forward_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --model_size "160m" --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device --full_data_set_chunk $full_data_set_chunk
+python forward_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --model_size "410m" --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device --full_data_set_chunk $full_data_set_chunk
+# python forward_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --model_size "1B" --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device --full_data_set_chunk $full_data_set_chunk
+python reversal_loss.py --num_examples $num_examples_reversal --prefix_length $prefix_length --reverse_model_prior false --dist "../data/distributions/pile_empirical.pt" --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device --full_data_set_chunk $full_data_set_chunk
+python reversal_loss.py --num_examples $num_examples_reversal --prefix_length $prefix_length --reverse_model_prior true --model_size "410m" --filename_prefix $filename_prefix  --dataset_name $dataset_name --seed $seed --device $device --full_data_set_chunk $full_data_set_chunk
 
 
 
