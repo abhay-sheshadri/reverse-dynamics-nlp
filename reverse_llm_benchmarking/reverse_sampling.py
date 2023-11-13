@@ -244,7 +244,7 @@ def compute_loss_reverse_dynamics_reverse_prior_target_memory(
             model,
             prior_dist,
             splus,
-            math.ceil(target_memory/((tokenized_suffix.shape[1]-i)*(50304))),
+            math.ceil(target_memory * 1e9/(4*(tokenized_suffix.shape[1]-i)*(50304))),
             device
         )
         full_logits = [logits,] + full_logits
