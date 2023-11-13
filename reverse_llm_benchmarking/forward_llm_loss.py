@@ -90,6 +90,11 @@ def main():
 
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Computing loss"):
+            # When the dataset is chunked, the leftover piece is kept. 
+            # However, sometimes the leftover piece is of size 1, and should be 
+            # skipped. 
+            if batch["input_ids"].shape[1] == 1:
+                continue
             input_ids = batch["input_ids"][:, :-1].to(device)
             targets = batch["input_ids"][:, 1:].to(device)
 
@@ -105,15 +110,15 @@ def main():
     loss_array = np.array(losses)
     loss_mean = np.mean(loss_array)
     loss_variance = np.var(loss_array)
-    nbatches = len(dataloader)
+    nlosses = len(losses)
 
     data = {
             'name': "forwards-"+args.model_size,
             'dataset' : args.dataset_name,
             'mean': loss_mean,
             'variance': loss_variance,
-            'std_on_mean': np.std(loss_array) / np.sqrt(nbatches),
-            'nbatches': nbatches,
+            'std_on_mean': np.std(loss_array) / np.sqrt(nlosses),
+            'nlosses': nlosses,
             }
     args_dict = vars(args)
     data.update(args_dict)
