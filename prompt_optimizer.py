@@ -112,21 +112,19 @@ class PromptOptimizer:
 
 
 class ReversalLMPrior:
-    """
-    Implementation of Default GCG method, using the default
-    settings from the paper (https://arxiv.org/abs/2307.15043v1)
-    """
 
     def __init__(
         self,
         model: AutoModelForCausalLM,
         reverse_model: AutoModelForCausalLM,
         tokenizer: AutoTokenizer,
+        batch_size=1024
     ):
 
         self.model = model
         self.reverse_model = reverse_model
         self.tokenizer = tokenizer
+        self.batch_size = batch_size
 
     def sample_proposals(
         self,
@@ -143,7 +141,7 @@ class ReversalLMPrior:
             self.reverse_model,
             prefix_length=input_length,
             tokenized_suffix=target_ids,
-            vocab_batch_size=1024,
+            vocab_batch_size=self.batch_size,
             temperature=temperature,
             dilution=0.3,
             device="cuda"
@@ -163,18 +161,58 @@ class ReversalLMPrior:
         # Sample proposals
         proposals = self.sample_proposals(initial_inputs.shape[-1], initial_targets, temperature=temperature)
         # Choose the proposal with the lowest loss
-        """
-        with torch.no_grad():
-            prop_logits = self.model(proposals).logits
-            targets = input_ids[target_slice]
-            losses = [nn.CrossEntropyLoss()(prop_logits[pidx, loss_slice, :], targets).item() for pidx in range(prop_logits.shape[0])]
-            # Add a penalty for unlikely prompts that are not very high-likelihood
-            # Choose next prompt
-            new_loss = min(losses)
-            min_idx = np.array(losses).argmin()
-            if prev_loss is None or new_loss < prev_loss:
-                input_ids = proposals[min_idx]
-                prev_loss = new_loss
-        """
         return self.tokenizer.decode(proposals[0])
     
+
+class ReversalEmpiricalPrior:
+
+    def __init__(
+        self,
+        model: AutoModelForCausalLM,
+        dist: torch.Tensor,
+        tokenizer: AutoTokenizer,
+        batch_size=1024
+    ):
+
+        self.model = model
+        self.dist = dist
+        self.tokenizer = tokenizer
+        self.batch_size = batch_size
+
+
+    def sample_proposals(
+        self,
+        input_length,
+        target_ids,
+        temperature = None
+    ):
+        # Sample random proposals
+        if temperature is None:
+            temperature = 1.0
+        proposals = []
+        tokens, _ = sample_reverse_dynamics(
+            self.model,
+            self.dist,
+            prefix_length=input_length,
+            tokenized_suffix=target_ids,
+            vocab_batch_size=self.batch_size,
+            temperature=temperature,
+            dilution=0.3,
+            device="cuda"
+        )
+        return tokens
+
+    def optimize(
+        self,
+        initial_input,
+        target_string,
+        use_prefix_loss=True,
+        temperature=0,
+    ):
+        # Parse input strings into tokens
+        initial_inputs = self.tokenizer.encode(initial_input, return_tensors="pt").cuda()
+        initial_targets = self.tokenizer.encode(target_string, return_tensors="pt").cuda()
+        # Sample proposals
+        proposals = self.sample_proposals(initial_inputs.shape[-1], initial_targets, temperature=temperature)
+        # Choose the proposal with the lowest loss
+        return self.tokenizer.decode(proposals[0])
