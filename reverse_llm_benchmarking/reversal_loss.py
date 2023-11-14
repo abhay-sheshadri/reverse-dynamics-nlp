@@ -74,6 +74,8 @@ def parse_arguments():
 
 def main():
     args = parse_arguments()
+    if args.full_data_set_chunk==False:
+        print("Using fixed windows.")
 
     device = torch.device(args.device)
     if device == 'cuda':
