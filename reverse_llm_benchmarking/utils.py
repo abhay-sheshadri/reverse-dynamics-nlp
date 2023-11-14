@@ -1,3 +1,4 @@
+import argparse
 from datasets import concatenate_datasets, load_dataset
 import random
 from torch.utils.data import DataLoader
@@ -52,7 +53,8 @@ def create_dataset(
     })
     tokenized_dataset = tokenized_dataset.map(lambda x: {'num_tokens': len(x['input_ids'])})
     chunk_size = prefix_length + suffix_length
-    assert min(tokenized_dataset["num_tokens"]) >= num_buffer + chunk_size
+    # assert min(tokenized_dataset["num_tokens"]) >= num_buffer + chunk_size
+    tokenized_dataset = tokenized_dataset.filter(lambda x: x['num_tokens'] >= num_buffer + chunk_size)
     tokenized_dataset = tokenized_dataset.map(lambda x: {'input_ids_truncated': x['input_ids'][num_buffer:num_buffer+chunk_size]})
 
     # Get all column names
@@ -173,3 +175,13 @@ def create_chunked_dataset_from_full_sequences(
 
 
     return dataloader
+
+def str2bool(v):
+    if isinstance(v, bool):
+       return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')

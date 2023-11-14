@@ -15,7 +15,7 @@ from transformers import GPTNeoXForCausalLM, GPTNeoXTokenizerFast
 
 import stationary_reversal as sr
 from reverse_sampling import *
-from utils import create_dataset, create_chunked_dataset_from_full_sequences
+from utils import create_dataset, create_chunked_dataset_from_full_sequences,str2bool
 
 
 # The memory usage of this function is dominated by
@@ -30,14 +30,14 @@ def parse_arguments():
     parser.add_argument('--num_examples', type=int, default=10,
         help='Number of examples to run loss over.'
     )
-    parser.add_argument('--full_data_set_chunk', type=bool, default=True)
+    parser.add_argument('--full_data_set_chunk', type=str2bool, default=True)
     parser.add_argument('--prefix_length', type=int, default=10,
         help='Number of tokens to predict in each example.'
     )
     parser.add_argument('--suffix_length', type=int, default=1,
         help='Context length for each example.'
     )
-    parser.add_argument('--num_buffer', type=int, required=False,
+    parser.add_argument('--num_buffer', type=int, default=0,
         help='Where to begin the prefix.'
     )
     parser.add_argument('--batch_size', type=int, default=1,
@@ -62,7 +62,7 @@ def parse_arguments():
     parser.add_argument('--dilution', type=float, default=0.0,
         help='dist = (1 - dilution) * dist + dilution * uniform'
     )
-    parser.add_argument('--reverse_model_prior', type=bool, default=False,
+    parser.add_argument('--reverse_model_prior', type=str2bool, default=False,
         help='Use the reverse model as a prior')
     parser.add_argument('--multiple_priors_start_idx', type=int, default=0)
     parser.add_argument('--multiple_priors_end_idx', type=int, default=0)
@@ -74,8 +74,15 @@ def parse_arguments():
 
 def main():
     args = parse_arguments()
-    if args.full_data_set_chunk==False:
+    if args.full_data_set_chunk:
+        print("using chunk full")
+    else:
         print("Using fixed windows.")
+
+    if args.reverse_model_prior:
+        print("using reverse model prior")
+    else:
+        print("not using reverse model prior")
 
     device = torch.device(args.device)
     if device == 'cuda':

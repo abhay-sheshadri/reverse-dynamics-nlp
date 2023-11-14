@@ -9,7 +9,7 @@ import torch
 from einops import rearrange
 from tqdm import tqdm
 from transformers import GPTNeoXForCausalLM, GPTNeoXTokenizerFast
-from utils import create_dataset, create_chunked_dataset_from_full_sequences
+from utils import create_dataset, create_chunked_dataset_from_full_sequences, str2bool
 
 
 def parse_arguments():
@@ -20,14 +20,14 @@ def parse_arguments():
     parser.add_argument('--num_examples', type=int, default=10,
         help='Number of examples to run loss over.'
     )
-    parser.add_argument('--full_data_set_chunk', type=bool, default=True)
+    parser.add_argument('--full_data_set_chunk', type=str2bool, default=True)
     parser.add_argument('--prefix_length', type=int, default=10,
         help='Number of tokens to predict in each example.'
     )
     parser.add_argument('--suffix_length', type=int, default=1,
         help='Context length for each example.'
     )
-    parser.add_argument('--num_buffer', type=int, required=False,
+    parser.add_argument('--num_buffer', type=int, default=0,
         help='Where to begin the prefix.'
     )
     parser.add_argument('--batch_size', type=int, default=1,
