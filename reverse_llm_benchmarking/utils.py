@@ -108,7 +108,8 @@ def create_chunked_dataset_from_full_sequences(
         suffix_length=1,
         batch_size=1,
         seed=42,
-        return_all = False
+        return_all = False,
+        filter_small_sequences = False
         ):
           
     # Check that the dataset is in the list of valid datasets    
@@ -153,6 +154,9 @@ def create_chunked_dataset_from_full_sequences(
 
     tokenized_dataset = dataset.map(tokenize_and_chunk)
     flat_dataset = flatten_dataset(tokenized_dataset)
+
+    if filter_small_sequences:
+        flat_dataset = [item for item in flat_dataset if len(item['input_ids']) == chunk_size]
     
     if not return_all:
         random.seed(seed)
