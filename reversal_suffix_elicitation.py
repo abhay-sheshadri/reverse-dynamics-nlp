@@ -84,8 +84,9 @@ def main():
         print(f'Average loss is {sum(reversal_loss)/len(reversal_loss)}')
 
     results_dict = {'reversal_losses': reversal_loss, 'reversal_naturals':reversal_naturals, 'reversal_prefixes':reversal_found_prefixes}
-    with open(f'/data/reversal_results_toxic_{args.model_size}_{args.eval_size}sample.pkl', 'wb') as f:
+    with open(f'data/reversal_results_toxic_{args.model_size}_{args.eval_size}sample.pkl', 'wb') as f:
         pickle.dump(results_dict, f) 
         
 if __name__ == "__main__":
     main()
+    
