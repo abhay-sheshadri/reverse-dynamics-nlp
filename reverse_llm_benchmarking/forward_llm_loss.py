@@ -41,6 +41,8 @@ def parse_arguments():
         help='Random seed.'
     )
     parser.add_argument('--filename_prefix', type=str, default="")
+    parser.add_argument('--return_all_sequences', type=str2bool, default=False)
+    parser.add_argument('--filter_small_sequences', type=str2bool, default=False)
 
     parser.add_argument('--model_size', type=str, default='160m')
 
@@ -68,7 +70,9 @@ def main():
             prefix_length=args.prefix_length,
             suffix_length=args.suffix_length,
             batch_size=args.batch_size,
-            seed=args.seed
+            seed=args.seed,
+            return_all=args.return_all_sequences,
+            filter_small_sequences=args.filter_small_sequences
         )
     else:
         dataloader = create_dataset(

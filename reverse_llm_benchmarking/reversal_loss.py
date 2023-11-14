@@ -25,7 +25,7 @@ from utils import create_dataset, create_chunked_dataset_from_full_sequences,str
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Process some arguments.')
 
-    # Dataloader Parameters
+    # Common Parameters
     parser.add_argument('--dataset_name', type=str, default='pile_val')
     parser.add_argument('--num_examples', type=int, default=10,
         help='Number of examples to run loss over.'
@@ -47,6 +47,8 @@ def parse_arguments():
         help='Random seed.'
     )
     parser.add_argument('--filename_prefix', type=str, default="")
+    parser.add_argument('--return_all_sequences', type=str2bool, default=False)
+    parser.add_argument('--filter_small_sequences', type=str2bool, default=False)
 
 
     # Reversal Parameters    
@@ -109,7 +111,9 @@ def main():
             prefix_length=args.prefix_length,
             suffix_length=args.suffix_length,
             batch_size=args.batch_size,
-            seed=args.seed
+            seed=args.seed,
+            return_all_sequences=args.return_all_sequences,
+            filter_small_sequences=args.filter_small_sequences
         )
     else:
         dataloader = create_dataset(
