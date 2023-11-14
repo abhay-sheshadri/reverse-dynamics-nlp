@@ -17,7 +17,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description='Process some arguments.')
     
     # Common Parameters
-    parser.add_argument('--num_params', type=int, default=160)
+    parser.add_argument('--model_size', type = str, default="160m")
     parser.add_argument("--eval_size", type=int, default=50)
     parser.add_argument("--dataset", type=str, default="allenai/real-toxicity-prompts")
     
@@ -29,7 +29,7 @@ def main():
     args = parse_arguments()
 
     tokenizer = AutoTokenizer.from_pretrained("afterless/reverse-pythia-160m")
-    model = GPTNeoXForCausalLM.from_pretrained(f"EleutherAI/pythia-{args.num_params}m").cuda()
+    model = GPTNeoXForCausalLM.from_pretrained(f"EleutherAI/pythia-{args.model_size}").cuda()
     reverse_model = GPTNeoXForCausalLM.from_pretrained("afterless/reverse-pythia-160m").cuda()
     tokenizer.eos_token = '<|endoftext|>'
     tokenizer.pad_token = tokenizer.eos_token
@@ -84,7 +84,7 @@ def main():
         print(f'Average loss is {sum(reversal_loss)/len(reversal_loss)}')
 
     results_dict = {'reversal_losses': reversal_loss, 'reversal_naturals':reversal_naturals, 'reversal_prefixes':reversal_found_prefixes}
-    with open(f'/data/reversal_results_toxic_{args.num_params}_{args.eval_size}sample.pkl', 'wb') as f:
+    with open(f'/data/reversal_results_toxic_{args.model_size}_{args.eval_size}sample.pkl', 'wb') as f:
         pickle.dump(results_dict, f) 
         
 if __name__ == "__main__":
