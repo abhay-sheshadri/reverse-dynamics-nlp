@@ -136,7 +136,7 @@ class ReverseModelSampler:
             initial_targets,
             max_new_tokens=initial_inputs.shape[-1]
         )
-        return reverse_decode(tokenizer, output)
+        return reverse_decode(self.tokenizer, output)
 
 
 class ReversalLMPrior:
