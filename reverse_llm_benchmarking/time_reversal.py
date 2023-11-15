@@ -20,7 +20,7 @@ reverse_model = GPTNeoXForCausalLM.from_pretrained(
 ).to(device)
 
 # current time
-tokenized_suffix = tokenizer.encode(" basketball")
+tokenized_suffix = tokenizer.encode(" basketball", return_tensors="pt").to(device)
 # current time
 start = time.time()
 out = sample_reverse_dynamics_reverse_prior(
