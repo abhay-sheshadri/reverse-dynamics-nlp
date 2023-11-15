@@ -9,11 +9,11 @@ device=cpu
 full_data_set_chunk=False
 
 
-python reverse_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device --return_all_sequences $return_all_sequences --filter_small_sequences $filter_small_sequences
-python forward_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --model_size "70m" --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device --return_all_sequences $return_all_sequences --filter_small_sequences $filter_small_sequences
-python forward_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --model_size "160m" --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device --return_all_sequences $return_all_sequences --filter_small_sequences $filter_small_sequences
-python forward_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --model_size "410m" --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device --return_all_sequences $return_all_sequences --filter_small_sequences $filter_small_sequences
-python forward_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --model_size "1B" --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device --return_all_sequences $return_all_sequences --filter_small_sequences $filter_small_sequences
+python reverse_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device 
+python forward_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --model_size "70m" --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device 
+python forward_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --model_size "160m" --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device 
+python forward_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --model_size "410m" --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device 
+python forward_llm_loss.py --num_examples $num_examples_models --prefix_length $prefix_length --model_size "1B" --filename_prefix $filename_prefix --dataset_name $dataset_name --seed $seed --device $device 
 
 # # Comparing LMs
 # prefix_length=2047
