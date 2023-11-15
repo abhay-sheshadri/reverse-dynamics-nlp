@@ -111,6 +111,34 @@ class PromptOptimizer:
         return self.tokenizer.decode(input_ids)
 
 
+class ReverseModelSampler:
+    
+    def __init__(
+        self,
+        reverse_model: AutoModelForCausalLM,
+        tokenizer: AutoTokenizer,
+    ):
+
+        self.reverse_model = reverse_model
+        self.tokenizer = tokenizer
+
+    def optimize(
+        self,
+        initial_input,
+        target_string,
+        temperature=0,
+    ):
+        # Parse input strings into tokens
+        initial_targets = reverse_tokenize(self.tokenizer, target_string)
+        initial_inputs = self.tokenizer.encode(initial_input, return_tensors="pt").cuda()
+        # Sample from the reverse model
+        output = self.reverse_model.generate(
+            initial_targets,
+            max_new_tokens=initial_inputs.shape[-1]
+        )
+        return reverse_decode(tokenizer, output)
+
+
 class ReversalLMPrior:
 
     def __init__(
