@@ -127,11 +127,7 @@ def main():
             seed=args.seed
         )
         
-    model = GPTNeoXForCausalLM.from_pretrained(
-        model_name,
-        revision="step3000",
-        device_map="auto"
-    ).to(device)
+    model = GPTNeoXForCausalLM.from_pretrained(model_name).to(device)
 
     model.eval()
     criterion = torch.nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id) 

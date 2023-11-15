@@ -56,9 +56,7 @@ def main():
     args = parse_arguments()
     model_name = "EleutherAI/pythia-" + args.model_size + "-deduped"
 
-    model = GPTNeoXForCausalLM.from_pretrained(model_name, 
-                                                revision="step3000",
-                                                device_map="auto").to(device)
+    model = GPTNeoXForCausalLM.from_pretrained(model_name).to(device)
     tokenizer = GPTNeoXTokenizerFast.from_pretrained("EleutherAI/gpt-neox-20b")
     tokenizer.pad_token = tokenizer.eos_token
 
