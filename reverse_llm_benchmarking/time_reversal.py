@@ -11,7 +11,7 @@ import time
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = GPTNeoXForCausalLM.from_pretrained(
-    "EleutherAI/pythia-12B-deduped",
+    "EleutherAI/pythia-1B-deduped",
 ).to(device)
 tokenizer = GPTNeoXTokenizerFast.from_pretrained("EleutherAI/gpt-neox-20b")
 
@@ -21,7 +21,6 @@ reverse_model = GPTNeoXForCausalLM.from_pretrained(
 
 # current time
 tokenized_suffix = tokenizer.encode(" basketball")
-print(tokenized_suffix.shape)
 # current time
 start = time.time()
 out = sample_reverse_dynamics_reverse_prior(
