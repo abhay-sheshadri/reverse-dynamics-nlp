@@ -6,11 +6,11 @@ dir_list = os.chdir('./../reverse-dynamics-nlp/')
 import torch
 from datasets import load_dataset
 from transformers import AutoTokenizer, GPTNeoXForCausalLM
-from prompt_optimizer import PromptOptimizer, ReversalLMPrior
+from prompt_optimizer import PromptOptimizer, ReversalLMPrior, ReverseModelSampler
 from utils import get_reverse_pair, start_chunk_hf, forward_loss, reverse_tokenize
 from utils import reverse_normalized_generate, reverse_normalized_beam_generate, forward_loss_batch, rand_init
 from tqdm import tqdm
-import pickle
+import json
 
 
 def parse_arguments():
@@ -23,6 +23,14 @@ def parse_arguments():
     
     
     return parser.parse_args()
+
+
+def get_statistics(prefix, suffix, optimizer, model, tokenizer):
+    # Get prediction according to optimizer
+    optimized_string = optimizer.optimize(prefix, suffix)
+    optimized_string = optimized_string[:len(optimized_string)-len(suffix)]
+    predicted_prefix_loss, predicted_suffix_loss = forward_loss(model, (optimized_string, suffix), tokenizer)
+    return optimized_string, predicted_prefix_loss, predicted_suffix_loss
 
 
 def main():
@@ -42,50 +50,66 @@ def main():
     # print(next(pairs))
     # nanda_list = list(pairs)
 
-    all_reversal_losses = []
-    all_reversal_naturals = []
-    all_reversal_prefixes = []
-
-    tokenwise_acc = []
-    reversal_loss = []
-    reversal_naturals = []
     temp = None #None for default reversal with uniform sampling
-    reversal_found_prefixes = []
-    reversal = ReversalLMPrior(model, reverse_model, tokenizer, batch_size=2000)
-
-    for p,pair in enumerate(tqdm(toxic_stuff)):
-        if len(reversal_loss)==args.eval_size: break
+    
+    optimizers = {
+        "gcg": PromptOptimizer(model, tokenizer, prefix_loss_weight=0),
+        "reverse_model": ReverseModelSampler(reverse_model, tokenizer),
+        "bayesian_reversal": ReversalLMPrior(model, reverse_model, tokenizer, batch_size=128)
+    }
+    
+    output_stats = {}
+    
+    for p, pair in enumerate(tqdm(toxic_stuff[:args.eval_size])):
+        
         prefix, suffix = pair
         prefix_tokens = tokenizer.encode(prefix)
         suffix_tokens = tokenizer.encode(suffix)
-        if len(prefix_tokens) > 10: prefix_tokens = prefix_tokens[-10:]
-        if len(prefix_tokens) < 10: continue
+        
+        if len(prefix_tokens) > 10:
+            prefix_tokens = prefix_tokens[-10:]
+        if len(prefix_tokens) < 10:
+            continue
         # if args.dataset == "pile"
         # if len(suffix_tokens) < 40: continue
-        prefix_loss,suffix_loss = forward_loss(model, pair, tokenizer)
-        len_prefix = len(prefix_tokens)
-        rand_prefix = rand_init(len_prefix, tokenizer)
-        optimized_string = reversal.optimize(rand_prefix, suffix, temperature=temp,)
-        predicted_prefix_tokens = tokenizer.encode(optimized_string)[:len_prefix]
-        predicted_prefix = tokenizer.decode(predicted_prefix_tokens)
-        reversal_found_prefixes.append((p,predicted_prefix))
-        predicted_prefix_loss, predicted_suffix_loss = forward_loss(model, (predicted_prefix, suffix), tokenizer)
-        print(f'True prefix is:\n{prefix} \n\nPredicted prefix:\n{predicted_prefix}\nfor suffix:\n {suffix}')
-        print(f'Loss for suffix given predicted prefix is {predicted_suffix_loss.item()} \n Suffix loss for true prefix is {suffix_loss.item()}')
-        print(f'NLL on predicted prefix is {predicted_prefix_loss.item()} \n NLL on true prefix is {prefix_loss.item()}')
-        reversal_loss.append(predicted_suffix_loss.item())
-        reversal_naturals.append(predicted_prefix_loss.item())
-        tokenwise_acc.append(sum([1 for i in range(len(prefix_tokens)) if prefix_tokens[i] == predicted_prefix_tokens[i]])/len(prefix_tokens))
+        prefix_loss, suffix_loss = forward_loss(model, pair, tokenizer)
+        
+        output_stats[suffix] = {
+            "gt_prefix": prefix,
+            "gt_prefix_loss": prefix_loss,
+            "gt_suffix_loss": suffix_loss,
+            "prompt_opts": {
+                opt: {} for opt in optimizers
+            }
+        }
+
+        for opt_name, optimizer in optimizers.items():
+            
+            len_prefix = len(prefix_tokens)
+            rand_prefix = rand_init(len_prefix, tokenizer)
+            
+            optimized_string, predicted_prefix_loss, predicted_suffix_loss = get_statistics(
+                rand_prefix,
+                suffix,
+                optimizer,
+                model,
+                tokenizer
+            )
+            
+            output_stats[suffix]["prompt_opts"][opt_name] = {
+                "prefix": optimized_string,
+                "prefix_loss": predicted_suffix_loss.item(),
+                "suffix_loss": predicted_suffix_loss.item(),
+            }
 
         # all_reversal_losses.append(reversal_loss)
         # all_reversal_naturals.append(reversal_naturals)
         # all_reversal_prefixes.append(reversal_found_prefixes)
         # print(f'Average tokenwise accuracy is {sum(tokenwise_acc)/len(tokenwise_acc)}')
-        print(f'Average loss is {sum(reversal_loss)/len(reversal_loss)}')
+        # print(f'Average loss is {sum(reversal_loss)/len(reversal_loss)}')
 
-    results_dict = {'reversal_losses': reversal_loss, 'reversal_naturals':reversal_naturals, 'reversal_prefixes':reversal_found_prefixes}
-    with open(f'data/reversal_results_toxic_{args.model_size}_{args.eval_size}sample.pkl', 'wb') as f:
-        pickle.dump(results_dict, f) 
+    with open(f'data/reversal_results_toxic_{args.model_size}_{args.eval_size}sample.json', 'w', encoding='utf-8') as f:
+        json.dump(output_stats, f, ensure_ascii=False, indent=4)
         
 if __name__ == "__main__":
     main()
