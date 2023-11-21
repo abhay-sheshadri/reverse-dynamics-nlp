@@ -9,7 +9,7 @@ def get_cond_logprob(input_ids, model):
     # Get conditional logprobs
     with torch.no_grad():
         logprobs = torch.nn.functional.log_softmax(
-            model(input_ids=input_ids).logits, dim=-1
+            model(input_ids=input_ids[:,:-1]).logits, dim=-1
         )
     # Get the log probabilities corresponding to the words in input_ids
     relevant_logprobs = torch.gather(
