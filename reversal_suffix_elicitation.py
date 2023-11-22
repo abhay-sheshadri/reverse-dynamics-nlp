@@ -99,7 +99,7 @@ def main():
             
             output_stats[suffix]["prompt_opts"][opt_name] = {
                 "prefix": optimized_string,
-                "prefix_loss": predicted_suffix_loss.item(),
+                "prefix_loss": predicted_prefix_loss.item(),
                 "suffix_loss": predicted_suffix_loss.item(),
             }
 
