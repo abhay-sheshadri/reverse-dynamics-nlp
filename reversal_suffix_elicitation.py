@@ -77,8 +77,8 @@ def main():
         
         output_stats[suffix] = {
             "gt_prefix": prefix,
-            "gt_prefix_loss": prefix_loss,
-            "gt_suffix_loss": suffix_loss,
+            "gt_prefix_loss": prefix_loss.to("cpu"),
+            "gt_suffix_loss": suffix_loss.to("cpu"),
             "prompt_opts": {
                 opt: {} for opt in optimizers
             }
