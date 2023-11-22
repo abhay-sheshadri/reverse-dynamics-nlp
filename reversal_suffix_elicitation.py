@@ -7,10 +7,11 @@ import torch
 from datasets import load_dataset
 from transformers import AutoTokenizer, GPTNeoXForCausalLM
 from prompt_optimizer import PromptOptimizer, ReversalLMPrior, ReverseModelSampler
+import pickle
 from utils import get_reverse_pair, start_chunk_hf, forward_loss, reverse_tokenize
 from utils import reverse_normalized_generate, reverse_normalized_beam_generate, forward_loss_batch, rand_init
 from tqdm import tqdm
-import json
+
 
 
 def parse_arguments():
@@ -108,8 +109,8 @@ def main():
         # print(f'Average tokenwise accuracy is {sum(tokenwise_acc)/len(tokenwise_acc)}')
         # print(f'Average loss is {sum(reversal_loss)/len(reversal_loss)}')
 
-    with open(f'data/reversal_results_toxic_{args.model_size}_{args.eval_size}sample.json', 'w', encoding='utf-8') as f:
-        json.dump(output_stats, f, ensure_ascii=False, indent=4)
+    with open(f'data/reversal_results_toxic_{args.model_size}_{args.eval_size}sample.pkl', 'wb') as f:
+        pickle.dump(output_stats, f)
         
 if __name__ == "__main__":
     main()
