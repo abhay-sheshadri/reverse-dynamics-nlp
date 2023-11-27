@@ -195,7 +195,7 @@ def main():
         os.makedirs(directory)
 
 
-    with open(f"{directory}/{args.filename_prefix}reversal-timing-{args.model_size}-reversior-prior-{args.reverse_model_prior}.pkl", 'w') as f:
+    with open(f"{directory}/{args.filename_prefix}reversal-timing-{args.model_size}-reversior-prior-{args.reverse_model_prior}.pkl", 'wb') as f:
         pickle.dump(data, f)
 
 if __name__ == '__main__':
