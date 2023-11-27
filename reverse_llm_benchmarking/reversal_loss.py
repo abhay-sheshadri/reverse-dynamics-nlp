@@ -174,7 +174,7 @@ def main():
     nlosses = len(losses)
 
     data = {
-        'name': "stationary_reversal",
+        'name': "reversal",
         'dataset' : args.dataset_name,
         'mean': loss_mean,
         'variance': loss_variance,
@@ -192,7 +192,7 @@ def main():
     hash_obj = hashlib.md5(dict_str.encode())
 
 
-    with open(f"{directory}/{args.filename_prefix}stationary-reversal-{args.model_size}-{hash_obj.hexdigest()}.json", 'w') as f:
+    with open(f"{directory}/{args.filename_prefix}reversal-{args.model_size}-{hash_obj.hexdigest()}.json", 'w') as f:
         json.dump(data, f)
 
 if __name__ == '__main__':
