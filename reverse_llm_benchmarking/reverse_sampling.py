@@ -45,7 +45,7 @@ def compute_posterior(
         end_idx = min(start_idx + vocab_batch_size, vocab_size)
 
         batch_indices = (
-            torch.arange(start_idx, end_idx).to(device)
+            torch.arange(start_idx, end_idx, device=device)
         )
         v_sentences = torch.cat(
             (batch_indices.unsqueeze(1), tokenized_suffix.repeat(batch_indices.size(0), 1)),
