@@ -168,8 +168,8 @@ def main():
                 )
                 end_time = time.time()
             times.append(end_time - start_time)
-            prefixes.append(tokenizer.decode(out[0][0:args.prefix_length]))
-            suffixes.append(tokenizer.decode(out[0][args.prefix_length:]))
+            prefixes.append(out[0][0:args.prefix_length])
+            suffixes.append(out[0][args.prefix_length:])
                                                         
     time_array = np.array(times)
     time_mean = np.mean(time_array)
