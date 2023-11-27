@@ -38,7 +38,7 @@ def main():
     args = parse_arguments()
 
     tokenizer = AutoTokenizer.from_pretrained("afterless/reverse-pythia-160m")
-    model = GPTNeoXForCausalLM.from_pretrained(f"EleutherAI/pythia-{args.model_size}-deduped").cuda()
+    model = GPTNeoXForCausalLM.from_pretrained(f"EleutherAI/pythia-{args.model_size}-deduped", cache_dir="/scratch/adi224/hf/models/").cuda()
     reverse_model = GPTNeoXForCausalLM.from_pretrained("afterless/reverse-pythia-160m").cuda()
     tokenizer.eos_token = '<|endoftext|>'
     tokenizer.pad_token = tokenizer.eos_token
