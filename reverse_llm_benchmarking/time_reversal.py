@@ -86,7 +86,7 @@ def main():
     else:
         print("not using reverse model prior")
 
-    device = args.device
+    device = torch.device(args.device)
     if device == 'cuda':
         print('Using gpu.')
 
