@@ -94,7 +94,7 @@ def main():
 
     if args.reverse_model_prior:
         reverse_model = GPTNeoXForCausalLM.from_pretrained(
-            "afterless/reverse-pythia-160m"
+            "afterless/reverse-pythia-160m", cache_dir="/scratch/adi224/hf/models/"
         ).to(device)
     else:
         empirical_dist = torch.load(args.dist)
@@ -127,7 +127,7 @@ def main():
             seed=args.seed
         )
         
-    model = GPTNeoXForCausalLM.from_pretrained(model_name).to(device)
+    model = GPTNeoXForCausalLM.from_pretrained(model_name, cache_dir="/scratch/adi224/hf/models/").to(device)
 
     model.eval()
     times = []
