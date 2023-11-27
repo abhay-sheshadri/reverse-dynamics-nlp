@@ -112,7 +112,7 @@ def main():
             suffix_length=args.suffix_length,
             batch_size=args.batch_size,
             seed=args.seed,
-            return_all_sequences=args.return_all_sequences,
+            return_all=args.return_all_sequences,
             filter_small_sequences=args.filter_small_sequences
         )
     else:
@@ -152,7 +152,6 @@ def main():
                     input_ids[-args.suffix_length:],
                     vocab_batch_size=args.vocab_batch_size,
                     temperature=1.0,
-                    dilution=0.0,
                     device=device
                 )
                 end_time = time.time()
@@ -165,7 +164,6 @@ def main():
                     input_ids[-args.suffix_length:],
                     vocab_batch_size=args.vocab_batch_size,
                     temperature=1.0,
-                    dilution=0.0,
                     device=device
                 )
                 end_time = time.time()
