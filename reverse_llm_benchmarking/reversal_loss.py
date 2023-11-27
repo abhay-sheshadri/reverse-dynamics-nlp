@@ -89,19 +89,22 @@ def main():
     device = torch.device(args.device)
     if device == 'cuda':
         print('Using gpu.')
+    print("here")
 
     model_name = 'EleutherAI/pythia-' + args.model_size + '-deduped'
 
     if args.reverse_model_prior:
         reverse_model = GPTNeoXForCausalLM.from_pretrained(
             "afterless/reverse-pythia-160m"
-        ).to(device)
+        ).to(device) 
     else:
         empirical_dist = torch.load(args.dist)
         if args.multiple_priors_end_idx > 0:
             empirical_dist = empirical_dist[:,args.multiple_priors_start_idx:args.multiple_priors_end_idx]
     
     tokenizer = GPTNeoXTokenizerFast.from_pretrained('EleutherAI/gpt-neox-20b')
+    print("here2")
+
 
     if args.full_data_set_chunk:
         dataloader = create_chunked_dataset_from_full_sequences(
@@ -112,7 +115,7 @@ def main():
             suffix_length=args.suffix_length,
             batch_size=args.batch_size,
             seed=args.seed,
-            return_all_sequences=args.return_all_sequences,
+            return_all=args.return_all_sequences,
             filter_small_sequences=args.filter_small_sequences
         )
     else:
