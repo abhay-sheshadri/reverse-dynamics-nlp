@@ -10,6 +10,11 @@ from typing import Callable, Iterable, Any
 import matplotlib.pyplot as plt
 
 SOFTMAX_FINAL = nn.Softmax(dim=-1)
+LOGSOFTMAX_FINAL = nn.LogSoftmax(dim=-1)
+CROSSENT = nn.CrossEntropyLoss(reduction='none')
+
+
+
 def token_gradients(model, input_ids, input_slice, target_slice, loss_slice):
 
     """
@@ -67,6 +72,63 @@ def token_gradients(model, input_ids, input_slice, target_slice, loss_slice):
     loss.backward()
 
     return one_hot.grad.clone()
+
+
+def token_gradients_with_output(model, input_ids, input_slice, target_slice, loss_slice):
+
+    """
+    Computes gradients of the loss with respect to the coordinates.
+    Parameters
+    ----------
+    model : Transformer Model
+        The transformer model to be used.
+    input_ids : torch.Tensor
+        The input sequence in the form of token ids.
+    input_slice : slice
+        The slice of the input sequence for which gradients need to be computed.
+    target_slice : slice
+        The slice of the input sequence to be used as targets.
+    loss_slice : slice
+        The slice of the logits to be used for computing the loss.
+    Returns
+    -------
+    torch.Tensor
+        The gradients of each token in the input_slice with respect to the loss.
+    """
+    embed_weights = list(model.modules())[2]
+    assert type(embed_weights).__name__=='Embedding'
+    embed_weights = embed_weights.weight
+    one_hot = torch.zeros(
+        input_ids[input_slice].shape[0],
+        embed_weights.shape[0],
+        device=model.device,
+        dtype=embed_weights.dtype
+    )
+    one_hot.scatter_(
+        1,
+        input_ids[input_slice].unsqueeze(1),
+        torch.ones(one_hot.shape[0], 1, device=model.device, dtype=embed_weights.dtype)
+    )
+    one_hot.requires_grad_()
+    input_embeds = (one_hot @ embed_weights).unsqueeze(0)
+
+    # now stitch it together with the rest of the embeddings
+    embeds = model.get_input_embeddings()(input_ids.unsqueeze(0)).detach()
+    full_embeds = torch.cat(
+        [
+            embeds[:,:input_slice.start,:],
+            input_embeds,
+            embeds[:,input_slice.stop:,:]
+        ],
+        dim=1)
+
+    logits = model(inputs_embeds=full_embeds).logits
+    targets = input_ids[target_slice]
+    loss = nn.CrossEntropyLoss()(logits[0,loss_slice,:], targets)
+
+    loss.backward()
+
+    return one_hot.grad.clone(), logits.detach().clone()
 
 
 def reverse_tokenize(tokenizer, target):
@@ -164,7 +226,7 @@ def get_pos_token_probabilities(tokenizer, dataset="NeelNanda/pile-10k", vocab_s
     return counts
 
 
-def start_chunk_hf(chunk, tokenizer, num_prefix_tokens=10, num_suffix_tokens=40):
+def start_chunk_hf(chunk, tokenizer, num_prefix_tokens=10, num_suffix_tokens=25):
     chunk = chunk['text']
     tokens = tokenizer(chunk[:200])['input_ids'] #drop first couple tokens given risk of incomplete token
     yield tokenizer.decode(tokens[:num_prefix_tokens]), tokenizer.decode(tokens[num_prefix_tokens:num_prefix_tokens+num_suffix_tokens])

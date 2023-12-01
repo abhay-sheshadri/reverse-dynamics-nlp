@@ -75,16 +75,20 @@ def sample_reverse_dynamics(
     tokenized_suffix,
     vocab_batch_size=1024,
     temperature=1.0,
+    dilution=0.0,
     device="cuda"
 ):
     splus = tokenized_suffix
     full_logits = []
-    stationary_dist = stationary_dist.to(device)
+    prior_dist = stationary_dist.to(device)
+    
+    uniform_dist = torch.ones_like(prior_dist) / prior_dist.shape[0]
+    prior_dist = prior_dist * (1-dilution) + uniform_dist * dilution
     
     for i in range(prefix_length):
         logits = compute_posterior(
             model,
-            stationary_dist,
+            prior_dist,
             splus,
             vocab_batch_size,
             device

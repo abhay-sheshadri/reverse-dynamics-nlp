@@ -20,7 +20,9 @@ def parse_arguments():
     # Common Parameters
     parser.add_argument('--model_size', type = str, default="160m")
     parser.add_argument("--eval_size", type=int, default=50)
-    parser.add_argument("--dataset", type=str, default="allenai/real-toxicity-prompts")
+    parser.add_argument("--dataset", type=str, required=True, choices=[
+        "allenai/real-toxicity-prompts", "NeelNanda/pile-10k"
+    ])
     
     
     return parser.parse_args()
@@ -43,13 +45,14 @@ def main():
     tokenizer.eos_token = '<|endoftext|>'
     tokenizer.pad_token = tokenizer.eos_token
 
-    data = load_dataset(args.dataset)
-    toxic_stuff = [(d['prompt']['text'],d['continuation']['text']) for d in data['train'] if (d['continuation']['severe_toxicity'] is not None and d['continuation']['severe_toxicity']>0.85)]
-    print(toxic_stuff[0])
-    # dataset = load_dataset("NeelNanda/pile-10k")
-    # pairs = get_reverse_pair(dataset['train'], start_chunk_hf, tokenizer)
-    # print(next(pairs))
-    # nanda_list = list(pairs)
+    data = load_dataset(args.dataset)    
+    if args.dataset == "allenai/real-toxicity-prompts":
+        ps_pairs = [(d['prompt']['text'],d['continuation']['text']) for d in data['train'] if (d['continuation']['severe_toxicity'] is not None and d['continuation']['severe_toxicity']>0.85)]
+        print(ps_pairs[0])
+    elif args.dataset == "NeelNanda/pile-10k":
+        pairs = get_reverse_pair(dataset['train'], start_chunk_hf, tokenizer)
+        print(next(pairs))
+        ps_pairs = list(pairs)
 
     temp = None #None for default reversal with uniform sampling
     
@@ -61,7 +64,7 @@ def main():
     
     output_stats = {}
     
-    for p, pair in enumerate(tqdm(toxic_stuff[:args.eval_size])):
+    for p, pair in enumerate(tqdm(ps_pairs[:args.eval_size])):
         
         prefix, suffix = pair
         prefix_tokens = tokenizer.encode(prefix)
