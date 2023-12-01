@@ -50,7 +50,7 @@ def main():
         ps_pairs = [(d['prompt']['text'],d['continuation']['text']) for d in data['train'] if (d['continuation']['severe_toxicity'] is not None and d['continuation']['severe_toxicity']>0.85)]
         print(ps_pairs[0])
     elif args.dataset == "NeelNanda/pile-10k":
-        pairs = get_reverse_pair(dataset['train'], start_chunk_hf, tokenizer)
+        pairs = get_reverse_pair(data['train'], start_chunk_hf, tokenizer)
         print(next(pairs))
         ps_pairs = list(pairs)
 
