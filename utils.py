@@ -226,7 +226,7 @@ def get_pos_token_probabilities(tokenizer, dataset="NeelNanda/pile-10k", vocab_s
     return counts
 
 
-def start_chunk_hf(chunk, tokenizer, num_prefix_tokens=10, num_suffix_tokens=25):
+def start_chunk_hf(chunk, tokenizer, num_prefix_tokens=10, num_suffix_tokens=40):
     chunk = chunk['text']
     tokens = tokenizer(chunk[:200])['input_ids'] #drop first couple tokens given risk of incomplete token
     yield tokenizer.decode(tokens[:num_prefix_tokens]), tokenizer.decode(tokens[num_prefix_tokens:num_prefix_tokens+num_suffix_tokens])
