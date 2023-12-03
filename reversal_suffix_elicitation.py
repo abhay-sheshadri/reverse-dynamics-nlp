@@ -49,16 +49,19 @@ def main():
         data = load_dataset(args.dataset)
         ps_pairs = [(d['prompt']['text'],d['continuation']['text']) for d in data['train'] if (d['continuation']['severe_toxicity'] is not None and d['continuation']['severe_toxicity']>0.85)]
         print(ps_pairs[0])
+        dataset_name = "real_toxicity_prompts"
     elif args.dataset == "NeelNanda/pile-10k":
         data = load_dataset(args.dataset)
         pairs = get_reverse_pair(data['train'], start_chunk_hf, tokenizer)
         print(next(pairs))
         ps_pairs = list(pairs)
+        dataset_name = "pile-10k"
     elif args.dataset == "pile_val":
         data = load_dataset('json', data_files='reverse_llm_benchmarking/data/val.jsonl')
         pairs = get_reverse_pair(data['train'], start_chunk_hf, tokenizer)
         print(next(pairs))
         ps_pairs = list(pairs)
+        dataset_name = "pile_val"
 
 
     temp = None #None for default reversal with uniform sampling
@@ -70,6 +73,9 @@ def main():
     }
     
     output_stats = {}
+    output_stats["parameters"] = {}
+    args_dict = vars(args)
+    output_stats["parameters"].update(args_dict)
     
     for p, pair in enumerate(tqdm(ps_pairs[:args.eval_size])):
         
@@ -119,7 +125,7 @@ def main():
         # print(f'Average tokenwise accuracy is {sum(tokenwise_acc)/len(tokenwise_acc)}')
         # print(f'Average loss is {sum(reversal_loss)/len(reversal_loss)}')
 
-    with open(f'data/reversal_results_toxic_{args.model_size}_{args.eval_size}sample.pkl', 'wb') as f:
+    with open(f'data/reversal_results_{dataset_name}_{args.model_size}_{args.eval_size}sample.pkl', 'wb') as f:
         pickle.dump(output_stats, f)
         
 if __name__ == "__main__":
