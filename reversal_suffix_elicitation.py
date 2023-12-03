@@ -21,7 +21,7 @@ def parse_arguments():
     parser.add_argument('--model_size', type = str, default="160m")
     parser.add_argument("--eval_size", type=int, default=50)
     parser.add_argument("--dataset", type=str, required=True, choices=[
-        "allenai/real-toxicity-prompts", "NeelNanda/pile-10k"
+        "allenai/real-toxicity-prompts", "NeelNanda/pile-10k", "pile_val"
     ])
     
     
@@ -45,14 +45,21 @@ def main():
     tokenizer.eos_token = '<|endoftext|>'
     tokenizer.pad_token = tokenizer.eos_token
 
-    data = load_dataset(args.dataset)    
     if args.dataset == "allenai/real-toxicity-prompts":
+        data = load_dataset(args.dataset)
         ps_pairs = [(d['prompt']['text'],d['continuation']['text']) for d in data['train'] if (d['continuation']['severe_toxicity'] is not None and d['continuation']['severe_toxicity']>0.85)]
         print(ps_pairs[0])
     elif args.dataset == "NeelNanda/pile-10k":
+        data = load_dataset(args.dataset)
         pairs = get_reverse_pair(data['train'], start_chunk_hf, tokenizer)
         print(next(pairs))
         ps_pairs = list(pairs)
+    elif args.dataset == "pile_val":
+        data = load_dataset('json', data_files='reverse_llm_benchmarking/data/val.jsonl')
+        pairs = get_reverse_pair(data['train'], start_chunk_hf, tokenizer)
+        print(next(pairs))
+        ps_pairs = list(pairs)
+
 
     temp = None #None for default reversal with uniform sampling
     
