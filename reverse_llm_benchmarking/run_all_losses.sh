@@ -1,5 +1,5 @@
 #!/bin/bash
-prefix_length=50
+prefix_length=10
 num_examples=50
 filename_prefix=debug_12_5
 dataset_name=pile_val
