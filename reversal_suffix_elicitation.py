@@ -25,6 +25,7 @@ def parse_arguments():
     ])
     parser.add_argument("--num_prefix_tokens", type=int, default=10)
     parser.add_argument("--num_suffix_tokens", type=int, default=40)
+    parser.add_argument("--vocab_batch_size", type=int, default=1000)
     
     
     return parser.parse_args()
@@ -75,7 +76,7 @@ def main():
     optimizers = {
         "gcg": PromptOptimizer(model, tokenizer, prefix_loss_weight=0),
         "reverse_model": ReverseModelSampler(reverse_model, tokenizer),
-        "bayesian_reversal": ReversalLMPrior(model, reverse_model, tokenizer, batch_size=128)
+        "bayesian_reversal": ReversalLMPrior(model, reverse_model, tokenizer, batch_size=args.vocab_batch_size)
     }
     
     output_stats = {}
