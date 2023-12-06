@@ -23,6 +23,8 @@ def parse_arguments():
     parser.add_argument("--dataset", type=str, required=True, choices=[
         "allenai/real-toxicity-prompts", "NeelNanda/pile-10k", "pile_val"
     ])
+    parser.add_argument("--num_prefix_tokens", type=int, default=10)
+    parser.add_argument("--num_suffix_tokens", type=int, default=40)
     
     
     return parser.parse_args()
@@ -40,7 +42,11 @@ def main():
     args = parse_arguments()
 
     tokenizer = AutoTokenizer.from_pretrained("afterless/reverse-pythia-160m")
-    model = GPTNeoXForCausalLM.from_pretrained(f"EleutherAI/pythia-{args.model_size}-deduped", cache_dir="/scratch/adi224/hf/models/").cuda()
+    if "ON_GREENE" in os.environ.keys():
+        model = GPTNeoXForCausalLM.from_pretrained(f"EleutherAI/pythia-{args.model_size}-deduped",cache_dir="/scratch/adi224/hf/models/").cuda()
+    else:
+        model = GPTNeoXForCausalLM.from_pretrained(f"EleutherAI/pythia-{args.model_size}-deduped").cuda()
+
     reverse_model = GPTNeoXForCausalLM.from_pretrained("afterless/reverse-pythia-160m").cuda()
     tokenizer.eos_token = '<|endoftext|>'
     tokenizer.pad_token = tokenizer.eos_token
@@ -52,13 +58,13 @@ def main():
         dataset_name = "real_toxicity_prompts"
     elif args.dataset == "NeelNanda/pile-10k":
         data = load_dataset(args.dataset)
-        pairs = get_reverse_pair(data['train'], start_chunk_hf, tokenizer)
+        pairs = get_reverse_pair(data['train'], lambda x1,x2: start_chunk_hf(x1, x2, num_prefix_tokens=args.num_prefix_tokens, num_suffix_tokens = args.num_suffix_tokens), tokenizer)
         print(next(pairs))
         ps_pairs = list(pairs)
         dataset_name = "pile-10k"
     elif args.dataset == "pile_val":
         data = load_dataset('json', data_files='reverse_llm_benchmarking/data/val.jsonl')
-        pairs = get_reverse_pair(data['train'], start_chunk_hf, tokenizer)
+        pairs = get_reverse_pair(data['train'], lambda x1,x2: start_chunk_hf(x1, x2, num_prefix_tokens=args.num_prefix_tokens, num_suffix_tokens = args.num_suffix_tokens), tokenizer)
         print(next(pairs))
         ps_pairs = list(pairs)
         dataset_name = "pile_val"
@@ -83,9 +89,9 @@ def main():
         prefix_tokens = tokenizer.encode(prefix)
         suffix_tokens = tokenizer.encode(suffix)
         
-        if len(prefix_tokens) > 10:
-            prefix_tokens = prefix_tokens[-10:]
-        if len(prefix_tokens) < 10:
+        if len(prefix_tokens) > args.num_prefix_tokens:
+            prefix_tokens = prefix_tokens[-args.num_prefix_tokens:]
+        if len(prefix_tokens) < args.num_prefix_tokens:
             continue
         # if args.dataset == "pile"
         # if len(suffix_tokens) < 40: continue
