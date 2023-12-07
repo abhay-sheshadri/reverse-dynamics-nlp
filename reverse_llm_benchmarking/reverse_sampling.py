@@ -40,7 +40,7 @@ def compute_posterior(
     posterior = []
     total_batches = math.ceil(vocab_size / vocab_batch_size)
 
-    for batch_num in tqdm(range(total_batches)):
+    for batch_num in tqdm(range(total_batches), min_interval=5):
         start_idx = batch_num * vocab_batch_size
         end_idx = min(start_idx + vocab_batch_size, vocab_size)
 
@@ -203,7 +203,7 @@ def compute_loss_reverse_dynamics_reverse_prior(
 ):
     full_logits = []
     
-    for i in tqdm(reversed(range(1, tokenized_suffix.shape[1]))):
+    for i in tqdm(reversed(range(1, tokenized_suffix.shape[1])),min_interval=5):
         splus = tokenized_suffix[:, i:]
 
         prior_dist = get_reverse_model_probs(reverse_model, splus)
@@ -236,7 +236,7 @@ def compute_loss_reverse_dynamics_reverse_prior_target_memory(
 ):
     full_logits = []
     
-    for i in tqdm(reversed(range(1, tokenized_suffix.shape[1]))):
+    for i in tqdm(reversed(range(1, tokenized_suffix.shape[1])), min_interval=5):
         splus = tokenized_suffix[:, i:]
 
         prior_dist = get_reverse_model_probs(reverse_model, splus)
