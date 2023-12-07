@@ -1,8 +1,8 @@
 #!/bin/bash
-prefix_length=10
-suffix_length=20
-num_examples=20
-filename_prefix=al_12_6_suffix_20_
+prefix_length=29
+suffix_length=1
+num_examples=100
+filename_prefix=al_12_6_
 dataset_name=pile_val
 seed=5491
 device=cuda
