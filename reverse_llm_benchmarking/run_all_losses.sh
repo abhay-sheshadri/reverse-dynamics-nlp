@@ -1,7 +1,8 @@
 #!/bin/bash
-prefix_length=29
+prefix_length=10
+suffix_length=20
 num_examples=100
-filename_prefix=all_losses_12_6_redo_
+filename_prefix=al_12_6_suffix_20_
 dataset_name=pile_val
 seed=5491
 device=cuda
