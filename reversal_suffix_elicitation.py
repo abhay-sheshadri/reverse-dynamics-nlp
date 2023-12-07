@@ -132,6 +132,10 @@ def main():
         # print(f'Average tokenwise accuracy is {sum(tokenwise_acc)/len(tokenwise_acc)}')
         # print(f'Average loss is {sum(reversal_loss)/len(reversal_loss)}')
 
+        if p in [10,20,50]:
+            with open(f'data/reversal_results_{dataset_name}_{args.model_size}_{args.eval_size}sample.pkl', 'wb') as f:
+                pickle.dump(output_stats, f)
+
     with open(f'data/reversal_results_{dataset_name}_{args.model_size}_{args.eval_size}sample.pkl', 'wb') as f:
         pickle.dump(output_stats, f)
         
