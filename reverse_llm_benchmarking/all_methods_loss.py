@@ -140,7 +140,7 @@ def main():
         output_dict[method]["losses"]=[]
         output_dict[method]["maximizing_sequences"] = []
     with torch.no_grad():
-        for batch in tqdm(dataloader, desc='Computing loss', min_interval=5):
+        for batch in tqdm(dataloader, desc='Computing loss', mininterval=5):
             # When the dataset is chunked, the leftover piece is kept. 
             # However, sometimes the leftover piece is of size 1, and should be 
             # skipped. 
