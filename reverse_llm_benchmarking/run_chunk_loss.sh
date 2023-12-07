@@ -1,5 +1,4 @@
 prefix_length=20
-suffix_length=1
 num_examples=50
 filename_prefix=al_suffix_20_chunk_test_early_doc_bias
 dataset_name=pile_val
