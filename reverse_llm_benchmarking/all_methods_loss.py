@@ -140,14 +140,14 @@ def main():
         output_dict[method]["losses"]=[]
         output_dict[method]["maximizing_sequences"] = []
     with torch.no_grad():
-        for batch in tqdm(dataloader, desc='Computing loss'):
+        for batch in tqdm(dataloader, desc='Computing loss', min_interval=5):
             # When the dataset is chunked, the leftover piece is kept. 
             # However, sometimes the leftover piece is of size 1, and should be 
             # skipped. 
             if batch["input_ids"].shape[1] == 1:
                 continue
             input_ids = batch['input_ids'].to(device)
-            output_dict["data"] = batch['input_ids'].cpu()
+            output_dict["data"].append(batch['input_ids'].cpu())
 
             for method in methods:
                 if method == "forwards":
