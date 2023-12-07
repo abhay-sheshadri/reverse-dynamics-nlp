@@ -1,5 +1,5 @@
 #!/bin/bash
-prefix_length=29
+prefix_length=19
 suffix_length=1
 num_examples=100
 filename_prefix=al_12_6_
