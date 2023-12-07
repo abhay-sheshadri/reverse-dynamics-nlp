@@ -95,7 +95,7 @@ def main():
         if len(prefix_tokens) < args.num_prefix_tokens:
             continue
         # if args.dataset == "pile"
-        # if len(suffix_tokens) < 40: continue
+        if len(suffix_tokens) < args.num_suffix_tokens: continue
         prefix_loss, suffix_loss = forward_loss(model, pair, tokenizer)
         
         output_stats[suffix] = {
