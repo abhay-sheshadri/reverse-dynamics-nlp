@@ -1,7 +1,7 @@
 #!/bin/bash
 prefix_length=10
 suffix_length=20
-num_examples=100
+num_examples=20
 filename_prefix=al_12_6_suffix_20_
 dataset_name=pile_val
 seed=5491
