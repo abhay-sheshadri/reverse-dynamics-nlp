@@ -10,6 +10,7 @@ from prompt_optimizer import PromptOptimizer, ReversalLMPrior, ReverseModelSampl
 import pickle
 from utils import get_reverse_pair, start_chunk_hf, forward_loss, reverse_tokenize
 from utils import reverse_normalized_generate, reverse_normalized_beam_generate, forward_loss_batch, rand_init
+import time
 from tqdm import tqdm
 
 
@@ -33,10 +34,12 @@ def parse_arguments():
 
 def get_statistics(prefix, suffix, optimizer, model, tokenizer):
     # Get prediction according to optimizer
+    t1 = time.time()
     optimized_string = optimizer.optimize(prefix, suffix)
     optimized_string = optimized_string[:len(optimized_string)-len(suffix)]
+    t2 = time.time()
     predicted_prefix_loss, predicted_suffix_loss = forward_loss(model, (optimized_string, suffix), tokenizer)
-    return optimized_string, predicted_prefix_loss, predicted_suffix_loss
+    return optimized_string, predicted_prefix_loss, predicted_suffix_loss, t2-t1
 
 
 def main():
@@ -112,7 +115,7 @@ def main():
             len_prefix = len(prefix_tokens)
             rand_prefix = rand_init(len_prefix, tokenizer)
             
-            optimized_string, predicted_prefix_loss, predicted_suffix_loss = get_statistics(
+            optimized_string, predicted_prefix_loss, predicted_suffix_loss, dt = get_statistics(
                 rand_prefix,
                 suffix,
                 optimizer,
@@ -124,6 +127,7 @@ def main():
                 "prefix": optimized_string,
                 "prefix_loss": predicted_prefix_loss.item(),
                 "suffix_loss": predicted_suffix_loss.item(),
+                "time": dt
             }
 
         # all_reversal_losses.append(reversal_loss)
