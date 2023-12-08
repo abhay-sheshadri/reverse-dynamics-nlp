@@ -12,7 +12,7 @@ import pickle
 
 
 tokenizer = AutoTokenizer.from_pretrained("afterless/reverse-pythia-160m")
-model = GPTNeoXForCausalLM.from_pretrained("EleutherAI/pythia-160m", cache_dir='/scratch/jp6263/hf/models/').cuda()
+model = GPTNeoXForCausalLM.from_pretrained("EleutherAI/pythia-160m", cache_dir='/scratch/adi224/hf/models/').cuda()
 tokenizer.eos_token = '<|endoftext|>'
 tokenizer.pad_token = tokenizer.eos_token
 
