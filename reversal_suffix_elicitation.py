@@ -27,6 +27,7 @@ def parse_arguments():
     parser.add_argument("--num_prefix_tokens", type=int, default=10)
     parser.add_argument("--num_suffix_tokens", type=int, default=40)
     parser.add_argument("--vocab_batch_size", type=int, default=1000)
+    parser.add_argument("--filename_prefix", type=str, default="")
     
     
     return parser.parse_args()
@@ -137,10 +138,10 @@ def main():
         # print(f'Average loss is {sum(reversal_loss)/len(reversal_loss)}')
 
         if p in [10,20,50]:
-            with open(f'data/reversal_results_{dataset_name}_{args.model_size}_{args.eval_size}sample.pkl', 'wb') as f:
+            with open(f'data/{args.filename_prefix}temp_{p}_reversal_results_{dataset_name}_{args.model_size}_{args.eval_size}sample.pkl', 'wb') as f:
                 pickle.dump(output_stats, f)
 
-    with open(f'data/reversal_results_{dataset_name}_{args.model_size}_{args.eval_size}sample.pkl', 'wb') as f:
+    with open(f'data/{args.filename_prefix}reversal_results_{dataset_name}_{args.model_size}_{args.eval_size}sample.pkl', 'wb') as f:
         pickle.dump(output_stats, f)
         
 if __name__ == "__main__":
