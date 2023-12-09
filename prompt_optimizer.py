@@ -115,10 +115,12 @@ class ReverseModelSampler:
     
     def __init__(
         self,
+        model: AutoModelForCausalLM,
         reverse_model: AutoModelForCausalLM,
         tokenizer: AutoTokenizer,
     ):
 
+        self.model = model
         self.reverse_model = reverse_model
         self.tokenizer = tokenizer
 
@@ -128,9 +130,33 @@ class ReverseModelSampler:
         target_string,
         temperature=0,
     ):
+        # Tokenize prefix and suffix
+        prefix_tokens = self.tokenizer.encode(initial_input)
+        suffix_tokens = self.tokenizer.encode(target_string)
+        # Beam search
+        prefix_list = reverse_normalized_beam_generate(
+            self.reverse_model,
+            self.tokenizer,
+            target_string,
+            len(prefix_tokens),
+            beam_size=50
+        )
+        pairs_batch = torch.stack(prefix_list)
+        pairs_batch = torch.cat((pairs_batch, torch.tensor([suffix_tokens]*len(prefix_list))), dim=1)
+        # Call the batched loss function
+        predicted_prefix_loss_batch, predicted_suffix_loss_batch = forward_loss_batch(
+            self.model,
+            pairs_batch,
+            self.tokenizer,
+            prefix_len=len(prefix_tokens)
+        )        
+        best_prefix = prefix_list[torch.argmin(predicted_suffix_loss_batch)]
+        return self.tokenizer.decode(best_prefix.tolist() + suffix_tokens)
+        """
         # Parse input strings into tokens
         initial_targets = reverse_tokenize(self.tokenizer, target_string)
         initial_inputs = self.tokenizer.encode(initial_input, return_tensors="pt").cuda()
+        
         # Sample from the reverse model
         output = self.reverse_model.generate(
             initial_targets,
@@ -139,6 +165,7 @@ class ReverseModelSampler:
             num_return_sequences=1,
         )
         return reverse_decode(self.tokenizer, output)[0]
+        """
 
 
 class ReversalLMPrior:
@@ -148,13 +175,15 @@ class ReversalLMPrior:
         model: AutoModelForCausalLM,
         reverse_model: AutoModelForCausalLM,
         tokenizer: AutoTokenizer,
-        batch_size=1024
+        batch_size=1024,
+        num_top_tokens: int = 10_000,
     ):
 
         self.model = model
         self.reverse_model = reverse_model
         self.tokenizer = tokenizer
         self.batch_size = batch_size
+        self.num_top_tokens = num_top_tokens
 
     def sample_proposals(
         self,
@@ -174,7 +203,8 @@ class ReversalLMPrior:
             vocab_batch_size=self.batch_size,
             temperature=temperature,
             dilution=0.3,
-            device="cuda"
+            device="cuda",
+            num_top_tokens=self.num_top_tokens
         )
         return tokens
 

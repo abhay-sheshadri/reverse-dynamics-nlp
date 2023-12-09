@@ -75,7 +75,7 @@ def main():
     
     optimizers = {
         "gcg": PromptOptimizer(model, tokenizer, prefix_loss_weight=0),
-        "reverse_model": ReverseModelSampler(reverse_model, tokenizer),
+        "reverse_model": ReverseModelSampler(model, reverse_model, tokenizer),
         "bayesian_reversal": ReversalLMPrior(model, reverse_model, tokenizer, batch_size=args.vocab_batch_size)
     }
     
