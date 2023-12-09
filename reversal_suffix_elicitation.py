@@ -10,6 +10,7 @@ from prompt_optimizer import PromptOptimizer, ReversalLMPrior, ReverseModelSampl
 import pickle
 from utils import get_reverse_pair, start_chunk_hf, forward_loss, reverse_tokenize
 from utils import reverse_normalized_generate, reverse_normalized_beam_generate, forward_loss_batch, rand_init
+import time
 from tqdm import tqdm
 
 
@@ -26,6 +27,7 @@ def parse_arguments():
     parser.add_argument("--num_prefix_tokens", type=int, default=10)
     parser.add_argument("--num_suffix_tokens", type=int, default=40)
     parser.add_argument("--vocab_batch_size", type=int, default=1000)
+    parser.add_argument("--filename_prefix", type=str, default="")
     
     
     return parser.parse_args()
@@ -33,10 +35,12 @@ def parse_arguments():
 
 def get_statistics(prefix, suffix, optimizer, model, tokenizer):
     # Get prediction according to optimizer
+    t1 = time.time()
     optimized_string = optimizer.optimize(prefix, suffix)
     optimized_string = optimized_string[:len(optimized_string)-len(suffix)]
+    t2 = time.time()
     predicted_prefix_loss, predicted_suffix_loss = forward_loss(model, (optimized_string, suffix), tokenizer)
-    return optimized_string, predicted_prefix_loss, predicted_suffix_loss
+    return optimized_string, predicted_prefix_loss, predicted_suffix_loss, t2-t1
 
 
 def main():
@@ -112,7 +116,7 @@ def main():
             len_prefix = len(prefix_tokens)
             rand_prefix = rand_init(len_prefix, tokenizer)
             
-            optimized_string, predicted_prefix_loss, predicted_suffix_loss = get_statistics(
+            optimized_string, predicted_prefix_loss, predicted_suffix_loss, dt = get_statistics(
                 rand_prefix,
                 suffix,
                 optimizer,
@@ -124,6 +128,7 @@ def main():
                 "prefix": optimized_string,
                 "prefix_loss": predicted_prefix_loss.item(),
                 "suffix_loss": predicted_suffix_loss.item(),
+                "time": dt
             }
 
         # all_reversal_losses.append(reversal_loss)
@@ -133,10 +138,10 @@ def main():
         # print(f'Average loss is {sum(reversal_loss)/len(reversal_loss)}')
 
         if p in [10,20,50]:
-            with open(f'data/reversal_results_{dataset_name}_{args.model_size}_{args.eval_size}sample.pkl', 'wb') as f:
+            with open(f'data/{args.filename_prefix}temp_{p}_reversal_results_{dataset_name}_{args.model_size}_{args.eval_size}sample.pkl', 'wb') as f:
                 pickle.dump(output_stats, f)
 
-    with open(f'data/reversal_results_{dataset_name}_{args.model_size}_{args.eval_size}sample.pkl', 'wb') as f:
+    with open(f'data/{args.filename_prefix}reversal_results_{dataset_name}_{args.model_size}_{args.eval_size}sample.pkl', 'wb') as f:
         pickle.dump(output_stats, f)
         
 if __name__ == "__main__":
