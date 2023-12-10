@@ -33,7 +33,8 @@ def compute_posterior(
     tokenized_suffix,
     vocab_batch_size=1024,
     device="cuda",
-    indices=None
+    indices=None,
+    disable_tqdm=True
 ):
     model.eval()
     vocab_size = stationary_dist.shape[0]
@@ -46,7 +47,7 @@ def compute_posterior(
 
     total_batches = math.ceil(full_indices.shape[-1] / vocab_batch_size)
 
-    for batch_num in tqdm(range(total_batches), mininterval=5):
+    for batch_num in tqdm(range(total_batches),disable=disable_tqdm):
         start_idx = batch_num * vocab_batch_size
         end_idx = min(start_idx + vocab_batch_size, vocab_size)
 
@@ -87,7 +88,8 @@ def sample_reverse_dynamics(
     vocab_batch_size=1024,
     temperature=1.0,
     dilution=0.0,
-    device="cuda"
+    device="cuda",
+    disable_tqdm=True
 ):
     splus = tokenized_suffix
     full_logits = []
@@ -102,7 +104,8 @@ def sample_reverse_dynamics(
             stationary_dist=prior_dist,
             tokenized_suffix=splus,
             vocab_batch_size=vocab_batch_size,
-            device=device
+            device=device,
+            disable_tqdm=disable_tqdm
         )
         full_logits = [logits,] + full_logits
         p = sample_with_temp(
@@ -114,12 +117,20 @@ def sample_reverse_dynamics(
     return splus, torch.stack(full_logits)
 
 
-def get_reverse_model_probs(reverse_model, input_ids, num_top_tokens=10_000):
+def get_reverse_model_probs(reverse_model, input_ids, num_top_tokens=None, filter_prob=None):
     input_ids = torch.flip(input_ids, (1,))
     outputs = reverse_model(input_ids).logits[0,-1,:]
     probs = F.softmax(outputs, dim=-1)
-    top_tokens = outputs.sort(descending=True).indices[:num_top_tokens]
-    return probs, top_tokens
+    if filter_prob is not None:
+        filter = (probs > filter_prob)
+        probs = probs * filter
+        top_tokens = torch.nonzero(filter, as_tuple=True)[0]
+        return probs, top_tokens
+    elif num_top_tokens is not None:
+        top_tokens = outputs.sort(descending=True).indices[:num_top_tokens]
+        return probs, top_tokens
+    else:
+        return probs, None
 
 
 def sample_reverse_dynamics_reverse_prior(
@@ -131,7 +142,9 @@ def sample_reverse_dynamics_reverse_prior(
     temperature=1.0,
     dilution=0.0,
     device="cuda",
-    num_top_tokens=10_000
+    num_top_tokens=None,
+    filter_prob=None,
+    disable_tqdm=True
 ):
     splus = tokenized_suffix
     full_logits = []
@@ -140,7 +153,7 @@ def sample_reverse_dynamics_reverse_prior(
         
         # print(tokenizer.decode(splus))
 
-        prior_dist, possible_tokens = get_reverse_model_probs(reverse_model, splus, num_top_tokens)
+        prior_dist, possible_tokens = get_reverse_model_probs(reverse_model, splus, num_top_tokens=num_top_tokens, filter_prob=filter_prob)
         
         uniform_dist = torch.ones_like(prior_dist) / prior_dist.shape[0]
         prior_dist = prior_dist * (1-dilution) + uniform_dist * dilution
@@ -151,7 +164,8 @@ def sample_reverse_dynamics_reverse_prior(
             tokenized_suffix=splus,
             vocab_batch_size=vocab_batch_size,
             device=device,
-            indices=possible_tokens
+            indices=possible_tokens,
+            disable_tqdm=disable_tqdm
         )
         full_logits = [logits,] + full_logits
         p = sample_with_temp(
@@ -214,11 +228,12 @@ def compute_loss_reverse_dynamics_reverse_prior(
     vocab_batch_size=1024,
     dilution=0.0,  # 0.3
     device="cuda",
-    loss = torch.nn.CrossEntropyLoss()
+    loss = torch.nn.CrossEntropyLoss(),
+    disable_tqdm = False
 ):
     full_logits = []
     
-    for i in tqdm(reversed(range(1, tokenized_suffix.shape[1])),mininterval=5):
+    for i in tqdm(reversed(range(1, tokenized_suffix.shape[1])),disable=disable_tqdm):
         splus = tokenized_suffix[:, i:]
 
         prior_dist, _ = get_reverse_model_probs(reverse_model, splus)
@@ -231,7 +246,8 @@ def compute_loss_reverse_dynamics_reverse_prior(
             prior_dist,
             splus,
             vocab_batch_size,
-            device
+            device,
+            disable=disable_tqdm
         )
         full_logits = [logits,] + full_logits
             
@@ -247,11 +263,12 @@ def compute_loss_reverse_dynamics_reverse_prior_target_memory(
     target_memory = 10.0, # in gigabytes 
     dilution=0.0,  # 0.3
     device="cuda",
-    loss = torch.nn.CrossEntropyLoss()
+    loss = torch.nn.CrossEntropyLoss(),
+    disable_tqdm=True
 ):
     full_logits = []
     
-    for i in tqdm(reversed(range(1, tokenized_suffix.shape[1])), mininterval=5):
+    for i in tqdm(reversed(range(1, tokenized_suffix.shape[1])), disable=disable_tqdm):
         splus = tokenized_suffix[:, i:]
 
         prior_dist = get_reverse_model_probs(reverse_model, splus)
@@ -264,7 +281,8 @@ def compute_loss_reverse_dynamics_reverse_prior_target_memory(
             prior_dist,
             splus,
             math.ceil(target_memory * 1e9/(4*(tokenized_suffix.shape[1]-i)*(50304))),
-            device
+            device,
+            disable=disable_tqdm
         )
         full_logits = [logits,] + full_logits
             
