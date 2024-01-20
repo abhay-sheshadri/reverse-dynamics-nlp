@@ -129,6 +129,7 @@ def main():
                 "suffix_loss": predicted_suffix_loss.item(),
                 "time": dt
             }
+            print("method: ", opt_name, "time: ", dt, "suffix_loss:", predicted_suffix_loss.item())
 
         # all_reversal_losses.append(reversal_loss)
         # all_reversal_naturals.append(reversal_naturals)
