@@ -74,7 +74,10 @@ class ReversalEmpiricalPrior:
         model: AutoModelForCausalLM,
         dist: torch.Tensor,
         tokenizer: AutoTokenizer,
-        batch_size=1024
+        batch_size=1024,
+        reverse_model: AutoModelForCausalLM = None,
+        num_top_tokens: int = 10_000,
+
     ):
 
         self.model = model
@@ -82,6 +85,8 @@ class ReversalEmpiricalPrior:
         self.tokenizer = tokenizer
         self.batch_size = batch_size
 
+        self.reverse_model = reverse_model
+        self.num_top_tokens = num_top_tokens
 
     def sample_proposals(
         self,
@@ -101,7 +106,9 @@ class ReversalEmpiricalPrior:
             vocab_batch_size=self.batch_size,
             temperature=temperature,
             dilution=0.3,
-            device="cuda"
+            device="cuda",
+            reverse_model=self.reverse_model,
+            num_top_tokens=self.num_top_tokens
         )
         return tokens
 
@@ -203,7 +210,9 @@ def sample_reverse_dynamics(
     vocab_batch_size=1024,
     temperature=1.0,
     dilution=0.0,
-    device="cuda"
+    device="cuda",
+    reverse_model=None,
+    num_top_tokens=10_000
 ):
     splus = tokenized_suffix
     full_logits = []
@@ -213,13 +222,21 @@ def sample_reverse_dynamics(
     prior_dist = prior_dist * (1-dilution) + uniform_dist * dilution
     
     for i in range(prefix_length):
+        
+        if reverse_model is not None:
+            _, possible_tokens = get_reverse_model_probs(reverse_model, splus, num_top_tokens)
+        else:
+            possible_tokens = None
+        
         logits = compute_posterior(
             model=model,
             stationary_dist=prior_dist,
             tokenized_suffix=splus,
             vocab_batch_size=vocab_batch_size,
-            device=device
+            device=device,
+            indices=possible_tokens
         )
+
         full_logits = [logits,] + full_logits
         p = sample_with_temp(
             logits,
