@@ -4,9 +4,7 @@ dir_list = os.chdir('./../reverse-dynamics-nlp/')
 import torch
 from datasets import load_dataset
 from transformers import AutoTokenizer, GPTNeoXForCausalLM
-from prompt_optimizer import PromptOptimizer
-from utils import get_reverse_pair, start_chunk_hf, forward_loss, reverse_tokenize
-from utils import reverse_normalized_generate, reverse_normalized_beam_generate, forward_loss_batch, rand_init
+from src import *
 from tqdm import tqdm
 import pickle
 
@@ -35,7 +33,7 @@ for prefix_weight in [0]+[0.02*3**i for i in range(4)]+[1]:
     gcg_naturals = []
     temp = None #None for default GCG with uniform sampling
     gcg_found_prefixes = []
-    gcg = PromptOptimizer(model, tokenizer, n_proposals=128, n_epochs=100, n_top_indices=128, prefix_loss_weight=prefix_weight)
+    gcg = GreedyCoordinateGradient(model, tokenizer, n_proposals=128, n_epochs=100, n_top_indices=128, prefix_loss_weight=prefix_weight)
 
     for p,pair in enumerate(tqdm(toxic_stuff)):
         if len(gcg_loss)==eval_size: break

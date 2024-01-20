@@ -1,1 +1,0 @@
-{"mean": 5.403787612915039, "variance": 0.030588694848120213, "std_on_mean": 0.12367031747375805, "nbatches": 2, "num_examples": 2, "prefix_length": 10, "suffix_length": 1, "num_buffer": 0, "suffix_batch_size": 1, "vocab_batch_size": 262, "device": "cuda", "dist": "../data/distributions/probs_10.pt", "dilution": 0.0, "multiple_priors_start_idx": 0, "multiple_priors_end_idx": 9}

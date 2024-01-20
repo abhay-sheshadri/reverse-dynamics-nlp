@@ -1,134 +1,60 @@
-import numpy as np
 import torch
 import torch.nn as nn
-from transformers import (AutoModelForCausalLM, AutoTokenizer,
-                          GPTNeoXForCausalLM)
-from transformers.generation.logits_process import (LogitsProcessor,
-                                                    LogitsProcessorList)
+from transformers import AutoModelForCausalLM, AutoTokenizer, GPTNeoXForCausalLM
+from transformers.generation.logits_process import LogitsProcessorList
 from datasets import load_dataset
 from typing import Callable, Iterable, Any
 import matplotlib.pyplot as plt
+from src.utils import *
 
 SOFTMAX_FINAL = nn.Softmax(dim=-1)
 LOGSOFTMAX_FINAL = nn.LogSoftmax(dim=-1)
 CROSSENT = nn.CrossEntropyLoss(reduction='none')
 
 
+class ReverseModelSampler:
+    
+    def __init__(
+        self,
+        model: AutoModelForCausalLM,
+        reverse_model: AutoModelForCausalLM,
+        tokenizer: AutoTokenizer,
+        num_beams=50
+    ):
 
-def token_gradients(model, input_ids, input_slice, target_slice, loss_slice):
+        self.model = model
+        self.reverse_model = reverse_model
+        self.tokenizer = tokenizer
+        self.num_beams = num_beams
 
-    """
-    Computes gradients of the loss with respect to the coordinates.
-
-    Parameters
-    ----------
-    model : Transformer Model
-        The transformer model to be used.
-    input_ids : torch.Tensor
-        The input sequence in the form of token ids.
-    input_slice : slice
-        The slice of the input sequence for which gradients need to be computed.
-    target_slice : slice
-        The slice of the input sequence to be used as targets.
-    loss_slice : slice
-        The slice of the logits to be used for computing the loss.
-
-    Returns
-    -------
-    torch.Tensor
-        The gradients of each token in the input_slice with respect to the loss.
-    """
-    embed_weights = list(model.modules())[2]
-    assert type(embed_weights).__name__=='Embedding'
-    embed_weights = embed_weights.weight
-    one_hot = torch.zeros(
-        input_ids[input_slice].shape[0],
-        embed_weights.shape[0],
-        device=model.device,
-        dtype=embed_weights.dtype
-    )
-    one_hot.scatter_(
-        1,
-        input_ids[input_slice].unsqueeze(1),
-        torch.ones(one_hot.shape[0], 1, device=model.device, dtype=embed_weights.dtype)
-    )
-    one_hot.requires_grad_()
-    input_embeds = (one_hot @ embed_weights).unsqueeze(0)
-
-    # now stitch it together with the rest of the embeddings
-    embeds = model.get_input_embeddings()(input_ids.unsqueeze(0)).detach()
-    full_embeds = torch.cat(
-        [
-            embeds[:,:input_slice.start,:],
-            input_embeds,
-            embeds[:,input_slice.stop:,:]
-        ],
-        dim=1)
-
-    logits = model(inputs_embeds=full_embeds).logits
-    targets = input_ids[target_slice]
-    loss = nn.CrossEntropyLoss()(logits[0,loss_slice,:], targets)
-
-    loss.backward()
-
-    return one_hot.grad.clone()
-
-
-def token_gradients_with_output(model, input_ids, input_slice, target_slice, loss_slice):
-
-    """
-    Computes gradients of the loss with respect to the coordinates.
-    Parameters
-    ----------
-    model : Transformer Model
-        The transformer model to be used.
-    input_ids : torch.Tensor
-        The input sequence in the form of token ids.
-    input_slice : slice
-        The slice of the input sequence for which gradients need to be computed.
-    target_slice : slice
-        The slice of the input sequence to be used as targets.
-    loss_slice : slice
-        The slice of the logits to be used for computing the loss.
-    Returns
-    -------
-    torch.Tensor
-        The gradients of each token in the input_slice with respect to the loss.
-    """
-    embed_weights = list(model.modules())[2]
-    assert type(embed_weights).__name__=='Embedding'
-    embed_weights = embed_weights.weight
-    one_hot = torch.zeros(
-        input_ids[input_slice].shape[0],
-        embed_weights.shape[0],
-        device=model.device,
-        dtype=embed_weights.dtype
-    )
-    one_hot.scatter_(
-        1,
-        input_ids[input_slice].unsqueeze(1),
-        torch.ones(one_hot.shape[0], 1, device=model.device, dtype=embed_weights.dtype)
-    )
-    one_hot.requires_grad_()
-    input_embeds = (one_hot @ embed_weights).unsqueeze(0)
-
-    # now stitch it together with the rest of the embeddings
-    embeds = model.get_input_embeddings()(input_ids.unsqueeze(0)).detach()
-    full_embeds = torch.cat(
-        [
-            embeds[:,:input_slice.start,:],
-            input_embeds,
-            embeds[:,input_slice.stop:,:]
-        ],
-        dim=1)
-
-    logits = model(inputs_embeds=full_embeds).logits
-    targets = input_ids[target_slice]
-    loss = nn.CrossEntropyLoss()(logits[0,loss_slice,:], targets)
-
-    loss.backward()
-
-    return one_hot.grad.clone(), logits.detach().clone()
+    def optimize(
+        self,
+        initial_input,
+        target_string,
+        temperature=0.5,
+    ):
+        # Just return the best beam search seq
+        initial_targets = reverse_tokenize(self.tokenizer, target_string)
+        initial_inputs = self.tokenizer.encode(initial_input, return_tensors="pt").cuda()
+        
+        # Sample from the reverse model
+        output = self.reverse_model.generate(
+            initial_targets,
+            max_new_tokens=initial_inputs.shape[-1],
+            temperature=temperature,
+            do_sample=True,
+            num_return_sequences=self.num_beams
+        )
+        
+        # Choose best output
+        pairs_batch = torch.flip(output, (1,))
+        predicted_prefix_loss_batch, predicted_suffix_loss_batch = forward_loss_batch(
+            self.model,
+            pairs_batch,
+            self.tokenizer,
+            prefix_len=initial_inputs.shape[1]
+        )        
+        return reverse_decode(self.tokenizer, output)[torch.argmin(predicted_suffix_loss_batch)]
 
 
 def reverse_tokenize(tokenizer, target):
@@ -146,6 +72,50 @@ def reverse_decode(tokenizer, output):
     return [
         tokenizer.decode(tokens[i]) for i in range(tokens.shape[0])
     ]
+
+
+class ReverseModelSamplerBeamSearch:
+    
+    def __init__(
+        self,
+        model: AutoModelForCausalLM,
+        reverse_model: AutoModelForCausalLM,
+        tokenizer: AutoTokenizer,
+        num_beams=50
+    ):
+
+        self.model = model
+        self.reverse_model = reverse_model
+        self.tokenizer = tokenizer
+        self.num_beams = num_beams
+
+    def optimize(
+        self,
+        initial_input,
+        target_string,
+    ):
+        # Tokenize prefix and suffix
+        prefix_tokens = self.tokenizer.encode(initial_input)
+        suffix_tokens = self.tokenizer.encode(target_string)
+        # Beam search
+        prefix_list = reverse_normalized_beam_generate(
+            self.reverse_model,
+            self.tokenizer,
+            target_string,
+            len(prefix_tokens),
+            beam_size=self.num_beams
+        )
+        pairs_batch = torch.stack(prefix_list)
+        pairs_batch = torch.cat((pairs_batch, torch.tensor([suffix_tokens]*len(prefix_list))), dim=1)
+        # Call the batched loss function
+        predicted_prefix_loss_batch, predicted_suffix_loss_batch = forward_loss_batch(
+            self.model,
+            pairs_batch,
+            self.tokenizer,
+            prefix_len=len(prefix_tokens)
+        )        
+        best_prefix = prefix_list[torch.argmin(predicted_suffix_loss_batch)]
+        return self.tokenizer.decode(best_prefix.tolist() + suffix_tokens)
 
 
 def reverse_normalized_forward(reverse_model, tokenizer, target, normalizer=None):
@@ -189,21 +159,6 @@ def reverse_positional_generate(reverse_model, tokenizer, target, max_length, no
     return ''.join(prefix[::-1])+target
 
 
-class SampleTopTokens(LogitsProcessor):
-
-    def __init__(self, n_initial_tokens, n_new_tokens, top_grad_tokens):
-        self.n_initial_tokens = n_initial_tokens
-        self.n_new_tokens = n_new_tokens
-        self.top_grad_tokens = top_grad_tokens
-
-    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
-        curr_pos = self.n_new_tokens - (input_ids.shape[-1] - self.n_initial_tokens) - 1
-        mask = torch.ones(scores.shape, dtype=torch.bool, device=scores.device)
-        mask[:, self.top_grad_tokens[curr_pos]] = False
-        scores.masked_fill_(mask, -float('inf'))
-        return scores
-
-
 def get_pos_token_probabilities(tokenizer, dataset="NeelNanda/pile-10k", vocab_size=50304, split='train', prefix=10, prev_counts=None):
     if type(dataset) == str:
         data = load_dataset(dataset)
@@ -224,33 +179,6 @@ def get_pos_token_probabilities(tokenizer, dataset="NeelNanda/pile-10k", vocab_s
         for t,token in enumerate(tokens):
             counts[token,t] += 1
     return counts
-
-
-def start_chunk_hf(chunk, tokenizer, num_prefix_tokens=10, num_suffix_tokens=40):
-    chunk = chunk['text']
-    tokens = tokenizer(chunk[:200])['input_ids'] #drop first couple tokens given risk of incomplete token
-    yield tokenizer.decode(tokens[:num_prefix_tokens]), tokenizer.decode(tokens[num_prefix_tokens:num_prefix_tokens+num_suffix_tokens])
-
-
-def rand_init(seq_length: int, tokenizer):
-    return tokenizer.decode(torch.randint(0, tokenizer.vocab_size, (seq_length,)))
-
-
-def forward_loss(model, pair, tokenizer, loss=torch.nn.CrossEntropyLoss(),):
-    prefix, suffix = pair
-    whole_tensor = tokenizer(prefix+suffix, return_tensors='pt').input_ids.cuda()
-    with torch.no_grad():
-        logs = model(whole_tensor).logits
-    start_ind = len(tokenizer.encode(prefix))
-    l_pref = loss(logs[0,:start_ind-1], whole_tensor[0,1:start_ind])
-    l_suff = loss(logs[0,start_ind-1:-1], whole_tensor[0,start_ind:])
-    return l_pref, l_suff
-
-
-def get_reverse_pair(dataset: Iterable[Any], chunk_func: Callable[..., Any], tokenizer: AutoTokenizer):
-    for chunk in dataset:
-        for chunk in chunk_func(chunk, tokenizer):
-            yield chunk
 
 
 def get_pos_token_probabilities_pandas(tokenizer, dataset, vocab_size=50304, prefix=10, prev_counts=None):
@@ -300,28 +228,6 @@ def reverse_tokenize_batch(tokenizer, targets):
     input_ids = torch.flip(input_ids, (1,))
     return input_ids
 
-
-def forward_loss_batch(model, pairs, tokenizer, prefix_len=None, loss=torch.nn.CrossEntropyLoss()):
-    if type(pairs) == list:
-        prefix_batch, suffix_batch = zip(*pairs)
-        whole_text_batch = [prefix + suffix for prefix, suffix in zip(prefix_batch, suffix_batch)]
-        whole_tensor = tokenizer(whole_text_batch, return_tensors='pt', padding=True, truncation=True).input_ids.cuda()
-    else:
-        whole_tensor = pairs.cuda()
-    with torch.no_grad():
-        logs = model(whole_tensor).logits
-    if prefix_len is None:
-        start_indices = [len(tokenizer.encode(prefix)) for prefix in prefix_batch]
-    else:
-        start_indices = [prefix_len] * len(whole_tensor)
-    l_pref_batch = []
-    l_suff_batch = []
-    for (start_ind, whole_tensor_i, logs_i) in zip(start_indices, whole_tensor, logs):
-        l_pref = loss(logs_i[:start_ind-1], whole_tensor_i[1:start_ind]) #start_ind=1 case?
-        l_suff = loss(logs_i[start_ind-1:-1], whole_tensor_i[start_ind:])
-        l_pref_batch.append(l_pref)
-        l_suff_batch.append(l_suff)
-    return torch.stack(l_pref_batch), torch.stack(l_suff_batch)
 
 def reverse_positional_forward(reverse_model, tokenizer, targets, pos, normalizer=None):
     if type(targets) == list:

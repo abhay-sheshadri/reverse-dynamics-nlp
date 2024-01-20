@@ -6,13 +6,11 @@ dir_list = os.chdir('./../reverse-dynamics-nlp/')
 import torch
 from datasets import load_dataset
 from transformers import AutoTokenizer, GPTNeoXForCausalLM
-from prompt_optimizer import PromptOptimizer, ReversalLMPrior, ReverseModelSampler
+from src import *
 import pickle
-from utils import get_reverse_pair, start_chunk_hf, forward_loss, reverse_tokenize
-from utils import reverse_normalized_generate, reverse_normalized_beam_generate, forward_loss_batch, rand_init
+
 import time
 from tqdm import tqdm
-
 
 
 def parse_arguments():
@@ -79,8 +77,8 @@ def main():
     temp = None #None for default reversal with uniform sampling
     
     optimizers = {
-        "gcg": PromptOptimizer(model, tokenizer, prefix_loss_weight=0),
-        "reverse_model": ReverseModelSampler(model, reverse_model, tokenizer),
+        "gcg": GreedyCoordinateGradient(model, tokenizer, prefix_loss_weight=0),
+        "reverse_model": ReverseModelSamplerBeamSearch(model, reverse_model, tokenizer),
         "bayesian_reversal": ReversalLMPrior(model, reverse_model, tokenizer, batch_size=args.vocab_batch_size, num_top_tokens=args.reversal_num_tokens)
     }
     

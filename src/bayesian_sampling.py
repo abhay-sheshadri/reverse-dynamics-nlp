@@ -1,8 +1,124 @@
 import math
+import numpy as np
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
+
+from transformers import (AutoModelForCausalLM, AutoTokenizer,
+                          GPTNeoXForCausalLM)
+from src.utils import *
+
+
+class ReversalLMPrior:
+
+    def __init__(
+        self,
+        model: AutoModelForCausalLM,
+        reverse_model: AutoModelForCausalLM,
+        tokenizer: AutoTokenizer,
+        batch_size=1024,
+        num_top_tokens: int = 10_000,
+    ):
+
+        self.model = model
+        self.reverse_model = reverse_model
+        self.tokenizer = tokenizer
+        self.batch_size = batch_size
+        self.num_top_tokens = num_top_tokens
+
+    def sample_proposals(
+        self,
+        input_length,
+        target_ids,
+        temperature = None
+    ):
+        # Sample random proposals
+        if temperature is None:
+            temperature = 1.0
+        proposals = []
+        tokens, _ = sample_reverse_dynamics_reverse_prior(
+            self.model,
+            self.reverse_model,
+            prefix_length=input_length,
+            tokenized_suffix=target_ids,
+            vocab_batch_size=self.batch_size,
+            temperature=temperature,
+            dilution=0.3,
+            device="cuda",
+            num_top_tokens=self.num_top_tokens
+        )
+        return tokens
+
+    def optimize(
+        self,
+        initial_input,
+        target_string,
+        use_prefix_loss=True,
+        temperature=0,
+    ):
+        # Parse input strings into tokens
+        initial_inputs = self.tokenizer.encode(initial_input, return_tensors="pt").cuda()
+        initial_targets = self.tokenizer.encode(target_string, return_tensors="pt").cuda()
+        # Sample proposals
+        proposals = self.sample_proposals(initial_inputs.shape[-1], initial_targets, temperature=temperature)
+        # Choose the proposal with the lowest loss
+        return self.tokenizer.decode(proposals[0])
+    
+
+class ReversalEmpiricalPrior:
+
+    def __init__(
+        self,
+        model: AutoModelForCausalLM,
+        dist: torch.Tensor,
+        tokenizer: AutoTokenizer,
+        batch_size=1024
+    ):
+
+        self.model = model
+        self.dist = dist
+        self.tokenizer = tokenizer
+        self.batch_size = batch_size
+
+
+    def sample_proposals(
+        self,
+        input_length,
+        target_ids,
+        temperature = None
+    ):
+        # Sample random proposals
+        if temperature is None:
+            temperature = 1.0
+        proposals = []
+        tokens, _ = sample_reverse_dynamics(
+            self.model,
+            self.dist,
+            prefix_length=input_length,
+            tokenized_suffix=target_ids,
+            vocab_batch_size=self.batch_size,
+            temperature=temperature,
+            dilution=0.3,
+            device="cuda"
+        )
+        return tokens
+
+    def optimize(
+        self,
+        initial_input,
+        target_string,
+        use_prefix_loss=True,
+        temperature=0.7,
+    ):
+        # Parse input strings into tokens
+        initial_inputs = self.tokenizer.encode(initial_input, return_tensors="pt").cuda()
+        initial_targets = self.tokenizer.encode(target_string, return_tensors="pt").cuda()
+        # Sample proposals
+        proposals = self.sample_proposals(initial_inputs.shape[-1], initial_targets, temperature=temperature)
+        # Choose the proposal with the lowest loss
+        return self.tokenizer.decode(proposals[0])
 
 
 def get_cond_logprob(input_ids, model):
