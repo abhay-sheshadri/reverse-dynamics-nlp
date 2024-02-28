@@ -29,7 +29,7 @@ print(toxic_stuff[0])
 all_gcg_losses = []
 all_gcg_naturals = []
 all_gcg_prefixes = []
-eval_size = 5 #45 for 4.5ish hours using 6 weights
+eval_size = 250 #45 for 4.5ish hours using 6 weights
 
 for prefix_weight in [0]+[0.02*3**i for i in range(4)]+[1]:
     tokenwise_acc = []
