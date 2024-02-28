@@ -78,7 +78,7 @@ def main():
     
     optimizers = {
         "gcg": GreedyCoordinateGradient(model, tokenizer, prefix_loss_weight=0),
-        "reverse_model": ReverseModelSamplerBeamSearch(model, reverse_model, tokenizer),
+        "reverse_model": ReverseModelHFBeamSearch(model, reverse_model, tokenizer),
         "bayesian_reversal": ReversalLMPrior(model, reverse_model, tokenizer, batch_size=args.vocab_batch_size, num_top_tokens=args.reversal_num_tokens)
     }
     
