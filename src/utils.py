@@ -4,6 +4,23 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           GPTNeoXForCausalLM)
 
 
+def reverse_tokenize(tokenizer, target):
+    input_ids = tokenizer.encode(target, return_tensors="pt").cuda()
+    input_ids = torch.flip(input_ids, (1,))
+    return input_ids
+
+
+def reverse_output(output):
+    return torch.flip(output, (1,))
+
+
+def reverse_decode(tokenizer, output):
+    tokens = torch.flip(output, (1,))
+    return [
+        tokenizer.decode(tokens[i]) for i in range(tokens.shape[0])
+    ]
+
+
 def rand_init(seq_length: int, tokenizer):
     return tokenizer.decode(torch.randint(0, tokenizer.vocab_size, (seq_length,)))
 

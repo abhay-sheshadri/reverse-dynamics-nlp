@@ -75,8 +75,8 @@ def token_gradients(model, input_ids, input_slice, target_slice, loss_slice):
 
 class GreedyCoordinateGradient:
     """
-    Implementation of Default GCG method, using the default
-    settings from the paper (https://arxiv.org/abs/2307.15043v1)
+    Implementation of Default GCG method, using the default settings from the paper (https://arxiv.org/abs/2307.15043v1)
+    Note this implementation is for base models (does not handle chat formatting)
     """
 
     def __init__(
@@ -133,7 +133,18 @@ class GreedyCoordinateGradient:
             prop = input_ids.clone()
             prop[token_pos] = rand_token
             proposals.append(prop)
-        return torch.stack(proposals)
+        proposals = torch.stack(proposals)
+        # Truncate and pad proposals which are too long or too short, respectively
+        candidates = self.tokenizer.batch_decode(proposals[:,input_slice])
+        candidates = self.tokenizer(candidates, 
+                                        return_tensors="pt", 
+                                        add_special_tokens=False,
+                                        padding=True, 
+                                        truncation=True, 
+                                        max_length=len(input_slice),
+                                    )['input_ids']
+        proposals[:,input_slice] = candidates
+        return proposals
 
     def optimize(
         self,
@@ -162,8 +173,6 @@ class GreedyCoordinateGradient:
                 prop_logits = self.model(proposals).logits
                 targets = input_ids[target_slice]
                 losses = [nn.CrossEntropyLoss()(prop_logits[pidx, loss_slice, :], targets).item() for pidx in range(prop_logits.shape[0])]
-                # Add a penalty for unlikely prompts that are not very high-likelihood
-                # if self.prefix_loss_weight > 0:
                 shifted_inputs = input_ids[shifted2]
                 prefix_losses = [nn.CrossEntropyLoss()(prop_logits[pidx, shifted1, :], shifted_inputs).item() for pidx in range(prop_logits.shape[0])]
                 losses = [losses[i] + self.prefix_loss_weight * prefix_losses[i] for i in range(len(losses))]

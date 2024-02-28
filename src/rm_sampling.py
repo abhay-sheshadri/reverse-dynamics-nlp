@@ -12,8 +12,65 @@ LOGSOFTMAX_FINAL = nn.LogSoftmax(dim=-1)
 CROSSENT = nn.CrossEntropyLoss(reduction='none')
 
 
-class ReverseModelSampler:
+class ReverseModelHFBeamSearch:
     
+    def __init__(
+        self,
+        model: AutoModelForCausalLM,
+        reverse_model: AutoModelForCausalLM,
+        tokenizer: AutoTokenizer,
+        rerank_fwd: bool = True,
+        return_beams: bool = False,
+        num_beams=50
+    ):
+        self.model = model
+        self.reverse_model = reverse_model
+        self.tokenizer = tokenizer
+        self.rerank_fwd = rerank_fwd
+        self.return_beams = return_beams
+        self.num_beams = num_beams
+
+    def optimize(
+        self,
+        initial_input,
+        target_string,
+    ):
+        # Tokenize prefix and suffix
+        prefix_tokens = self.tokenizer.encode(initial_input)
+        suffix_tokens = self.tokenizer.encode(target_string)
+        if self.return_beams or self.rerank_fwd:
+            suffix_prefix_tensor = self.reverse_model.generate(
+                suffix_tokens,
+                max_new_tokens=prefix_tokens.shape[-1],
+                num_beams=self.num_beams, 
+                do_sample=False,
+                num_return_sequences=self.num_beams,
+                )
+            prefix_suffix_tensor = torch.flip(suffix_prefix_tensor, (1,))
+            if self.rerank_fwd:
+                _, predicted_suffix_loss_batch = forward_loss_batch(
+                    self.model,
+                    prefix_suffix_tensor,
+                    self.tokenizer,
+                    prefix_len=prefix_tokens.shape[0]
+                )
+                string_list = reverse_decode(self.tokenizer, suffix_prefix_tensor)
+                loss_list = list(predicted_suffix_loss_batch)
+                string_loss_pairs = list(zip(string_list, loss_list))
+                string_loss_pairs.sort(key=lambda x: x[1])
+                return string_loss_pairs
+            else:
+                return reverse_decode(self.tokenizer, suffix_prefix_tensor)
+        else:
+            reverse_tensor = self.reverse_model.generate(num_beams=self.num_beams, do_sample=False, max_new_tokens=len(prefix_tokens),)
+            prefix_suffix_tensor = torch.flip(reverse_tensor, (1,))
+            return self.tokenizer.decode(prefix_suffix_tensor)
+
+
+class ReverseModelSamplerBoN:
+    '''
+    This class does temperature sampling from the reverse model and returns the best of N samples
+    '''
     def __init__(
         self,
         model: AutoModelForCausalLM,
@@ -33,7 +90,6 @@ class ReverseModelSampler:
         target_string,
         temperature=0.5,
     ):
-        # Just return the best beam search seq
         initial_targets = reverse_tokenize(self.tokenizer, target_string)
         initial_inputs = self.tokenizer.encode(initial_input, return_tensors="pt").cuda()
         
@@ -56,235 +112,6 @@ class ReverseModelSampler:
         )        
         return reverse_decode(self.tokenizer, output)[torch.argmin(predicted_suffix_loss_batch)]
 
-
-def reverse_tokenize(tokenizer, target):
-    input_ids = tokenizer.encode(target, return_tensors="pt").cuda()
-    input_ids = torch.flip(input_ids, (1,))
-    return input_ids
-
-
-def reverse_output(output):
-    return torch.flip(output, (1,))
-
-
-def reverse_decode(tokenizer, output):
-    tokens = torch.flip(output, (1,))
-    return [
-        tokenizer.decode(tokens[i]) for i in range(tokens.shape[0])
-    ]
-
-
-class ReverseModelSamplerBeamSearch:
-    
-    def __init__(
-        self,
-        model: AutoModelForCausalLM,
-        reverse_model: AutoModelForCausalLM,
-        tokenizer: AutoTokenizer,
-        num_beams=50
-    ):
-
-        self.model = model
-        self.reverse_model = reverse_model
-        self.tokenizer = tokenizer
-        self.num_beams = num_beams
-
-    def optimize(
-        self,
-        initial_input,
-        target_string,
-    ):
-        # Tokenize prefix and suffix
-        prefix_tokens = self.tokenizer.encode(initial_input)
-        suffix_tokens = self.tokenizer.encode(target_string)
-        # Beam search
-        prefix_list = reverse_normalized_beam_generate(
-            self.reverse_model,
-            self.tokenizer,
-            target_string,
-            len(prefix_tokens),
-            beam_size=self.num_beams
-        )
-        pairs_batch = torch.stack(prefix_list)
-        pairs_batch = torch.cat((pairs_batch, torch.tensor([suffix_tokens]*len(prefix_list))), dim=1)
-        # Call the batched loss function
-        predicted_prefix_loss_batch, predicted_suffix_loss_batch = forward_loss_batch(
-            self.model,
-            pairs_batch,
-            self.tokenizer,
-            prefix_len=len(prefix_tokens)
-        )        
-        best_prefix = prefix_list[torch.argmin(predicted_suffix_loss_batch)]
-        return self.tokenizer.decode(best_prefix.tolist() + suffix_tokens)
-
-
-def reverse_normalized_forward(reverse_model, tokenizer, target, normalizer=None):
-    inputs = reverse_tokenize(tokenizer, target)
-    outputs = reverse_model(inputs).logits[0,-1,:]
-    outputs = SOFTMAX_FINAL(outputs).cpu()
-    if not normalizer is None:
-        outputs = torch.mul(outputs, normalizer)
-    return outputs
-
-
-def reverse_normalized_generate(reverse_model, tokenizer, target, max_length, normalizer=None, temperature=1):
-    prefix = []
-    for i in range(max_length):
-        normalized_probs = reverse_normalized_forward(reverse_model, tokenizer, ''.join(prefix[::-1]) + target, normalizer)
-        if not temperature:
-            token = tokenizer.decode(torch.argmax(normalized_probs))
-        else:
-            probs = torch.div(normalized_probs, temperature)
-            probs = torch.nn.Softmax(dim=-1)(probs)
-            token = tokenizer.decode(torch.multinomial(probs, num_samples=1))
-        if token == '[PAD]' or token == '[EOS]':
-            break
-        prefix.append(token)
-    return ''.join(prefix[::-1])+target
-
-
-def reverse_positional_generate(reverse_model, tokenizer, target, max_length, normalizer=None, temperature=1):
-    prefix = []
-    for i in range(max_length):
-        normalized_probs = reverse_positional_forward(reverse_model, tokenizer, ''.join(prefix[::-1]) + target, max_length-i-1, normalizer)
-        if not temperature:
-            token = tokenizer.decode(torch.argmax(normalized_probs))
-        else:
-            probs = torch.div(normalized_probs, temperature)
-            probs = torch.nn.Softmax(dim=-1)(probs)
-            token = tokenizer.decode(torch.multinomial(probs, num_samples=1))
-        if token == '[PAD]' or token == '[EOS]':
-            break
-        prefix.append(token)
-    return ''.join(prefix[::-1])+target
-
-
-def get_pos_token_probabilities(tokenizer, dataset="NeelNanda/pile-10k", vocab_size=50304, split='train', prefix=10, prev_counts=None):
-    if type(dataset) == str:
-        data = load_dataset(dataset)
-    else:
-        data = dataset
-    if prev_counts is None:
-        counts = torch.zeros((vocab_size, prefix), dtype=torch.float)
-    else: 
-        counts = prev_counts
-    
-    token_to_string_rough_bound = 10*prefix
-    for chunk in data[split]:
-        text = chunk['text']
-        tokens = tokenizer(text[:token_to_string_rough_bound], return_tensors="pt").input_ids[0]
-        tokens = tokens[:prefix]
-        if len(tokens) < prefix:
-            tokens = tokenizer(text, return_tensors="pt").input_ids[0][:prefix]
-        for t,token in enumerate(tokens):
-            counts[token,t] += 1
-    return counts
-
-
-def get_pos_token_probabilities_pandas(tokenizer, dataset, vocab_size=50304, prefix=10, prev_counts=None):
-    if prev_counts is None:
-        counts = torch.zeros((vocab_size, prefix), dtype=torch.float)
-    else: 
-        counts = prev_counts
-    
-    token_to_string_rough_bound = 10*prefix
-    for chunk in dataset:
-        text = chunk[1] #1 is assumed to be first data column having text
-        tokens = tokenizer(text[:token_to_string_rough_bound], return_tensors="pt").input_ids[0]
-        tokens = tokens[:prefix]
-        if len(tokens) < prefix:
-            tokens = tokenizer(text, return_tensors="pt").input_ids[0][:prefix]
-            if len(tokens) < prefix:
-                continue
-        for t,token in enumerate(tokens):
-            counts[token,t] += 1
-    return counts
-
-
-def get_token_probabilities_pandas(tokenizer, dataset="NeelNanda/pile-10k", vocab_size=50304, split='train', prev_counts=None):
-    # if type(dataset)==str:
-    #     data = load_dataset(dataset)
-    # else:
-    data = dataset
-    if prev_counts is None:
-        counts = torch.zeros(vocab_size, dtype=torch.float) #tokenizer.vocab_size is fake 50304 is the model output dimension which is what we care about
-    else:
-        counts = prev_counts
-    for chunk in data:
-        text = chunk[1]
-        tokens = tokenizer(text, return_tensors="pt").input_ids[0]
-        token_counts = torch.bincount(tokens.type(torch.long), minlength=counts.size(0))
-        counts += token_counts
-
-    # total_tokens = torch.sum(counts)
-    # probabilities = counts / total_tokens
-    # min_val = probabilities[probabilities > 0].min()
-    # probabilities[probabilities == 0] = min_val
-    return counts
-
-
-def reverse_tokenize_batch(tokenizer, targets):
-    input_ids = tokenizer(targets, return_tensors="pt", padding=True, truncation=True).input_ids.cuda()
-    input_ids = torch.flip(input_ids, (1,))
-    return input_ids
-
-
-def reverse_positional_forward(reverse_model, tokenizer, targets, pos, normalizer=None):
-    if type(targets) == list:
-        inputs = reverse_tokenize_batch(tokenizer, targets)  # Assume this function can handle batched targets
-    else:
-        inputs = torch.flip(targets, (1,)).cuda()
-    with torch.no_grad():
-        outputs = reverse_model(inputs).logits[:, -1, :]  # Adjust indexing for batched outputs
-    outputs = SOFTMAX_FINAL(outputs).cpu()
-    if normalizer is not None:
-        outputs = torch.mul(outputs, normalizer[:, pos])
-    return outputs
-
-
-def reverse_normalized_beam_generate(reverse_model, tokenizer, target, max_length, beam_size=10, normalizer=None):
-    beams = [(1, torch.empty(0,))]  # List of tuples of score and prefix
-    target_tokens = tokenizer(target, return_tensors="pt",).input_ids[0]
-    for i in range(max_length):
-        targets = torch.stack([torch.cat((prefix,target_tokens)) for _, prefix in beams]).type(target_tokens.dtype).cuda()
-        normalized_probs = reverse_positional_forward(reverse_model, tokenizer, targets, max_length-i-1, normalizer)
-        candidates = []
-        for j, (score, prefix) in enumerate(beams):
-            probs, indices = torch.topk(normalized_probs[j], beam_size)  # Get top-k probabilities and indices for each beam
-            for prob, idx in zip(probs, indices):  # No batch dimension here, handled in the outer loop
-                new_prefix = torch.cat((idx.view(1,),prefix))
-                new_score = score*prob.item()
-                candidates.append((new_score, new_prefix))
-        # Sort candidates by score and keep the top-k
-        candidates.sort(key=lambda x: x[0], reverse=True)
-        beams = candidates[:beam_size]
-    return [b[1].type(target_tokens.dtype) for b in beams]
-
-
-def reverse_fwd_beam_generate(reverse_model, forward_model, tokenizer, target, max_length, beam_size=10, normalizer=None):
-    beams = [(1, torch.empty(0, dtype=torch.long))]  # List of tuples of score and prefix
-    target_tokens = tokenizer(target, return_tensors="pt").input_ids[0]  
-    for i in range(max_length):
-        targets = torch.stack([torch.cat((prefix, target_tokens)) for _, prefix in beams]).type(target_tokens.dtype)
-        normalized_probs = reverse_positional_forward(reverse_model, tokenizer, targets, max_length-i-1, normalizer).cpu()
-        candidates = []
-        for j, (_, prefix) in enumerate(beams):
-            _, indices = torch.topk(normalized_probs[j], beam_size)  # Get top-k probabilities and indices for each beam
-            for idx in indices:
-                new_prefix = torch.cat((idx.view(1,), prefix))
-                candidates.append(new_prefix)
-        
-        pairs_batch = torch.stack(candidates)
-        pairs_batch = torch.cat((pairs_batch, target_tokens.repeat(pairs_batch.shape[0],1)), dim=1)
-        
-        _, l_suff = forward_loss_batch(forward_model, pairs_batch, tokenizer, prefix_len=i+1)  # Assuming all prefixes have the same length
-        
-        # Update candidates with new scores based on forward model loss
-        candidates = [(l_suff[i].item(), candidates[i]) for i in range(len(candidates))]
-        candidates.sort(key=lambda x: x[0], reverse=True)
-        beams = candidates[:beam_size]
-    
-    return [b[1].type(target_tokens.dtype) for b in beams]  # Returning tensors as in reverse_normalized_beam_generate
 
 def plot_beams(all_losses, all_naturals, beam_size, normalizer_temp, base_prefix_loss=None, base_suffix_loss=None):
     eval_size = len(all_losses)
@@ -323,3 +150,219 @@ def plot_beams(all_losses, all_naturals, beam_size, normalizer_temp, base_prefix
     plt.legend(loc='upper right')
     plt.grid(True)
     plt.show()
+
+
+def reverse_tokenize_batch(tokenizer, targets):
+    input_ids = tokenizer(targets, return_tensors="pt", padding=True, truncation=True).input_ids.cuda()
+    input_ids = torch.flip(input_ids, (1,))
+    return input_ids
+
+############################################################################################################
+# OLD CODE
+############################################################################################################
+
+# class ReverseModelSamplerBeamSearch:
+    
+#     def __init__(
+#         self,
+#         model: AutoModelForCausalLM,
+#         reverse_model: AutoModelForCausalLM,
+#         tokenizer: AutoTokenizer,
+#         num_beams=50
+#     ):
+
+#         self.model = model
+#         self.reverse_model = reverse_model
+#         self.tokenizer = tokenizer
+#         self.num_beams = num_beams
+
+#     def optimize(
+#         self,
+#         initial_input,
+#         target_string,
+#     ):
+#         # Tokenize prefix and suffix
+#         prefix_tokens = self.tokenizer.encode(initial_input)
+#         suffix_tokens = self.tokenizer.encode(target_string)
+#         # Beam search
+#         prefix_list = reverse_normalized_beam_generate(
+#             self.reverse_model,
+#             self.tokenizer,
+#             target_string,
+#             len(prefix_tokens),
+#             beam_size=self.num_beams
+#         )
+#         pairs_batch = torch.stack(prefix_list)
+#         pairs_batch = torch.cat((pairs_batch, torch.tensor([suffix_tokens]*len(prefix_list))), dim=1)
+#         # Call the batched loss function
+#         predicted_prefix_loss_batch, predicted_suffix_loss_batch = forward_loss_batch(
+#             self.model,
+#             pairs_batch,
+#             self.tokenizer,
+#             prefix_len=len(prefix_tokens)
+#         )        
+#         best_prefix = prefix_list[torch.argmin(predicted_suffix_loss_batch)]
+#         return self.tokenizer.decode(best_prefix.tolist() + suffix_tokens)
+
+
+# def reverse_normalized_forward(reverse_model, tokenizer, target, normalizer=None):
+#     inputs = reverse_tokenize(tokenizer, target)
+#     outputs = reverse_model(inputs).logits[0,-1,:]
+#     outputs = SOFTMAX_FINAL(outputs).cpu()
+#     if not normalizer is None:
+#         outputs = torch.mul(outputs, normalizer)
+#     return outputs
+
+
+# def reverse_normalized_generate(reverse_model, tokenizer, target, max_length, normalizer=None, temperature=1):
+#     prefix = []
+#     for i in range(max_length):
+#         normalized_probs = reverse_normalized_forward(reverse_model, tokenizer, ''.join(prefix[::-1]) + target, normalizer)
+#         if not temperature:
+#             token = tokenizer.decode(torch.argmax(normalized_probs))
+#         else:
+#             probs = torch.div(normalized_probs, temperature)
+#             probs = torch.nn.Softmax(dim=-1)(probs)
+#             token = tokenizer.decode(torch.multinomial(probs, num_samples=1))
+#         if token == '[PAD]' or token == '[EOS]':
+#             break
+#         prefix.append(token)
+#     return ''.join(prefix[::-1])+target
+
+
+# def reverse_positional_generate(reverse_model, tokenizer, target, max_length, normalizer=None, temperature=1):
+#     prefix = []
+#     for i in range(max_length):
+#         normalized_probs = reverse_positional_forward(reverse_model, tokenizer, ''.join(prefix[::-1]) + target, max_length-i-1, normalizer)
+#         if not temperature:
+#             token = tokenizer.decode(torch.argmax(normalized_probs))
+#         else:
+#             probs = torch.div(normalized_probs, temperature)
+#             probs = torch.nn.Softmax(dim=-1)(probs)
+#             token = tokenizer.decode(torch.multinomial(probs, num_samples=1))
+#         if token == '[PAD]' or token == '[EOS]':
+#             break
+#         prefix.append(token)
+#     return ''.join(prefix[::-1])+target
+
+
+# def get_pos_token_probabilities(tokenizer, dataset="NeelNanda/pile-10k", vocab_size=50304, split='train', prefix=10, prev_counts=None):
+#     if type(dataset) == str:
+#         data = load_dataset(dataset)
+#     else:
+#         data = dataset
+#     if prev_counts is None:
+#         counts = torch.zeros((vocab_size, prefix), dtype=torch.float)
+#     else: 
+#         counts = prev_counts
+    
+#     token_to_string_rough_bound = 10*prefix
+#     for chunk in data[split]:
+#         text = chunk['text']
+#         tokens = tokenizer(text[:token_to_string_rough_bound], return_tensors="pt").input_ids[0]
+#         tokens = tokens[:prefix]
+#         if len(tokens) < prefix:
+#             tokens = tokenizer(text, return_tensors="pt").input_ids[0][:prefix]
+#         for t,token in enumerate(tokens):
+#             counts[token,t] += 1
+#     return counts
+
+
+# def get_pos_token_probabilities_pandas(tokenizer, dataset, vocab_size=50304, prefix=10, prev_counts=None):
+#     if prev_counts is None:
+#         counts = torch.zeros((vocab_size, prefix), dtype=torch.float)
+#     else: 
+#         counts = prev_counts
+    
+#     token_to_string_rough_bound = 10*prefix
+#     for chunk in dataset:
+#         text = chunk[1] #1 is assumed to be first data column having text
+#         tokens = tokenizer(text[:token_to_string_rough_bound], return_tensors="pt").input_ids[0]
+#         tokens = tokens[:prefix]
+#         if len(tokens) < prefix:
+#             tokens = tokenizer(text, return_tensors="pt").input_ids[0][:prefix]
+#             if len(tokens) < prefix:
+#                 continue
+#         for t,token in enumerate(tokens):
+#             counts[token,t] += 1
+#     return counts
+
+
+# def get_token_probabilities_pandas(tokenizer, dataset="NeelNanda/pile-10k", vocab_size=50304, split='train', prev_counts=None):
+#     # if type(dataset)==str:
+#     #     data = load_dataset(dataset)
+#     # else:
+#     data = dataset
+#     if prev_counts is None:
+#         counts = torch.zeros(vocab_size, dtype=torch.float) #tokenizer.vocab_size is fake 50304 is the model output dimension which is what we care about
+#     else:
+#         counts = prev_counts
+#     for chunk in data:
+#         text = chunk[1]
+#         tokens = tokenizer(text, return_tensors="pt").input_ids[0]
+#         token_counts = torch.bincount(tokens.type(torch.long), minlength=counts.size(0))
+#         counts += token_counts
+
+#     # total_tokens = torch.sum(counts)
+#     # probabilities = counts / total_tokens
+#     # min_val = probabilities[probabilities > 0].min()
+#     # probabilities[probabilities == 0] = min_val
+#     return counts
+
+
+# def reverse_positional_forward(reverse_model, tokenizer, targets, pos, normalizer=None):
+#     if type(targets) == list:
+#         inputs = reverse_tokenize_batch(tokenizer, targets)  # Assume this function can handle batched targets
+#     else:
+#         inputs = torch.flip(targets, (1,)).cuda()
+#     with torch.no_grad():
+#         outputs = reverse_model(inputs).logits[:, -1, :]  # Adjust indexing for batched outputs
+#     outputs = SOFTMAX_FINAL(outputs).cpu()
+#     if normalizer is not None:
+#         outputs = torch.mul(outputs, normalizer[:, pos])
+#     return outputs
+
+
+# def reverse_normalized_beam_generate(reverse_model, tokenizer, target, max_length, beam_size=10, normalizer=None):
+#     beams = [(1, torch.empty(0,))]  # List of tuples of score and prefix
+#     target_tokens = tokenizer(target, return_tensors="pt",).input_ids[0]
+#     for i in range(max_length):
+#         targets = torch.stack([torch.cat((prefix,target_tokens)) for _, prefix in beams]).type(target_tokens.dtype).cuda()
+#         normalized_probs = reverse_positional_forward(reverse_model, tokenizer, targets, max_length-i-1, normalizer)
+#         candidates = []
+#         for j, (score, prefix) in enumerate(beams):
+#             probs, indices = torch.topk(normalized_probs[j], beam_size)  # Get top-k probabilities and indices for each beam
+#             for prob, idx in zip(probs, indices):  # No batch dimension here, handled in the outer loop
+#                 new_prefix = torch.cat((idx.view(1,),prefix))
+#                 new_score = score*prob.item()
+#                 candidates.append((new_score, new_prefix))
+#         # Sort candidates by score and keep the top-k
+#         candidates.sort(key=lambda x: x[0], reverse=True)
+#         beams = candidates[:beam_size]
+#     return [b[1].type(target_tokens.dtype) for b in beams]
+
+
+# def reverse_fwd_beam_generate(reverse_model, forward_model, tokenizer, target, max_length, beam_size=10, normalizer=None):
+#     beams = [(1, torch.empty(0, dtype=torch.long))]  # List of tuples of score and prefix
+#     target_tokens = tokenizer(target, return_tensors="pt").input_ids[0]  
+#     for i in range(max_length):
+#         targets = torch.stack([torch.cat((prefix, target_tokens)) for _, prefix in beams]).type(target_tokens.dtype)
+#         normalized_probs = reverse_positional_forward(reverse_model, tokenizer, targets, max_length-i-1, normalizer).cpu()
+#         candidates = []
+#         for j, (_, prefix) in enumerate(beams):
+#             _, indices = torch.topk(normalized_probs[j], beam_size)  # Get top-k probabilities and indices for each beam
+#             for idx in indices:
+#                 new_prefix = torch.cat((idx.view(1,), prefix))
+#                 candidates.append(new_prefix)
+        
+#         pairs_batch = torch.stack(candidates)
+#         pairs_batch = torch.cat((pairs_batch, target_tokens.repeat(pairs_batch.shape[0],1)), dim=1)
+        
+#         _, l_suff = forward_loss_batch(forward_model, pairs_batch, tokenizer, prefix_len=i+1)  # Assuming all prefixes have the same length
+        
+#         # Update candidates with new scores based on forward model loss
+#         candidates = [(l_suff[i].item(), candidates[i]) for i in range(len(candidates))]
+#         candidates.sort(key=lambda x: x[0], reverse=True)
+#         beams = candidates[:beam_size]
+    
+#     return [b[1].type(target_tokens.dtype) for b in beams]  # Returning tensors as in reverse_normalized_beam_generate

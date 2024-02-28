@@ -55,7 +55,7 @@ class ReversalLMPrior:
         self,
         initial_input,
         target_string,
-        use_prefix_loss=True,
+        use_prefix_loss=False,
         temperature=0,
     ):
         # Parse input strings into tokens
@@ -66,6 +66,58 @@ class ReversalLMPrior:
         # Choose the proposal with the lowest loss
         return self.tokenizer.decode(proposals[0])
     
+
+class ReversalLMPriorBoN(ReversalLMPrior):
+
+    def __init__(
+        self,
+        model: AutoModelForCausalLM,
+        reverse_model: AutoModelForCausalLM,
+        tokenizer: AutoTokenizer,
+        batch_size=1024,
+        num_top_tokens: int = 10_000,
+        N: int = 50,  
+        return_all: bool = False
+    ):
+        super().__init__(
+            model=model,
+            reverse_model=reverse_model,
+            tokenizer=tokenizer,
+            batch_size=batch_size,
+            num_top_tokens=num_top_tokens,
+        )
+        self.N = N
+        self.return_all = return_all
+
+    def optimize(
+            self,
+            initial_input,
+            target_string,
+            use_prefix_loss=False,
+            temperature=1,
+    ):
+        # Parse input strings into tokens
+        initial_inputs = self.tokenizer.encode(initial_input, return_tensors="pt").cuda()
+        initial_targets = self.tokenizer.encode(target_string, return_tensors="pt").cuda()
+        # Sample proposals
+        proposals = []
+        for _ in range(self.N):
+            proposal = self.sample_proposals(initial_inputs.shape[-1], initial_targets, temperature=temperature)
+            proposals.append(proposal)
+
+        proposals = torch.stack(proposals)
+        pairs_batch = torch.flip(proposals, (1,))
+        _, predicted_suffix_loss_batch = forward_loss_batch(
+            self.model,
+            pairs_batch,
+            self.tokenizer,
+            prefix_len=initial_inputs.shape[1]
+        )        
+        if self.return_all:
+            return [(self.tokenizer.decode(p),predicted_suffix_loss_batch[p]) for ind,p in enumerate(proposals)]
+        else:
+            return self.tokenizer.decode(self.tokenizer, pairs_batch)[torch.argmin(predicted_suffix_loss_batch)], torch.min(predicted_suffix_loss_batch)    
+
 
 class ReversalEmpiricalPrior:
 
