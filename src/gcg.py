@@ -163,10 +163,10 @@ class GreedyCoordinateGradient:
                 targets = input_ids[target_slice]
                 losses = [nn.CrossEntropyLoss()(prop_logits[pidx, loss_slice, :], targets).item() for pidx in range(prop_logits.shape[0])]
                 # Add a penalty for unlikely prompts that are not very high-likelihood
-                if self.prefix_loss_weight > 0:
-                    shifted_inputs = input_ids[shifted2]
-                    prefix_losses = [nn.CrossEntropyLoss()(prop_logits[pidx, shifted1, :], shifted_inputs).item() for pidx in range(prop_logits.shape[0])]
-                    losses = [losses[i] + self.prefix_loss_weight * prefix_losses[i] for i in range(len(losses))]
+                # if self.prefix_loss_weight > 0:
+                shifted_inputs = input_ids[shifted2]
+                prefix_losses = [nn.CrossEntropyLoss()(prop_logits[pidx, shifted1, :], shifted_inputs).item() for pidx in range(prop_logits.shape[0])]
+                losses = [losses[i] + self.prefix_loss_weight * prefix_losses[i] for i in range(len(losses))]
                 # Choose next prompt
                 new_loss = min(losses)
                 min_idx = np.array(losses).argmin()
