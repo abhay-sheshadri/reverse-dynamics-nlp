@@ -146,7 +146,7 @@ class GreedyCoordinateGradient:
                                         truncation=True, 
                                         max_length=input_slice.stop - input_slice.start,
                                     )['input_ids']
-        proposals = proposal[1:] # Drop the previous input--first proposal
+        proposals = proposals[1:] # Drop the previous input--first proposal
         proposals[:,input_slice] = candidates[1:] 
         return proposals
 
