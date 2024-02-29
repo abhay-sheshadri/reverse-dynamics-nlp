@@ -122,7 +122,7 @@ class GreedyCoordinateGradient:
         temperature = None
     ):
         # Sample random proposals
-        proposals = []
+        proposals = [input_ids] # First proposal is the original input, used for padding purposes will be dropped
         if temperature:
             logits = self.model(input_ids.view(1, *input_ids.shape)).logits
             probs = SOFTMAX_FINAL(logits/temperature)
@@ -146,7 +146,7 @@ class GreedyCoordinateGradient:
                                         truncation=True, 
                                         max_length=input_slice.stop - input_slice.start,
                                     )['input_ids']
-        proposals[:,input_slice] = candidates
+        proposals[:,input_slice] = candidates[1:] # Drop the previous input--first proposal
         return proposals
 
     def optimize(
