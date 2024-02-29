@@ -85,7 +85,7 @@ class GreedyCoordinateGradient:
         tokenizer: AutoTokenizer,
         n_proposals: int = 128,
         n_epochs: int = 100,
-        n_top_indices: int = 128,
+        n_top_indices: int = 256,
         prefix_loss_weight: float = 0.0
     ):
 
@@ -95,6 +95,9 @@ class GreedyCoordinateGradient:
         self.n_epochs = n_epochs
         self.n_top_indices = n_top_indices
         self.prefix_loss_weight = prefix_loss_weight
+        if tokenizer.pad_token is None:
+            print('Tokenizer does not have a pad token. Setting pad_token to 2. When jailbreaks are too short we will pad with tokenizer.decode(2)')
+            tokenizer.pad_token = tokenizer.decode(2)
 
     def calculate_restricted_subset(
         self,
@@ -141,7 +144,7 @@ class GreedyCoordinateGradient:
                                         add_special_tokens=False,
                                         padding=True, 
                                         truncation=True, 
-                                        max_length=len(input_slice),
+                                        max_length=input_slice.stop - input_slice.start,
                                     )['input_ids']
         proposals[:,input_slice] = candidates
         return proposals
@@ -151,6 +154,7 @@ class GreedyCoordinateGradient:
         initial_input,
         target_string,
         temperature=None,
+        revert_on_loss_increase=False,
     ):
         # Parse input strings into tokens
         initial_inputs = self.tokenizer.encode(initial_input, return_tensors="pt")[0].cuda()
@@ -176,10 +180,15 @@ class GreedyCoordinateGradient:
                 shifted_inputs = input_ids[shifted2]
                 prefix_losses = [nn.CrossEntropyLoss()(prop_logits[pidx, shifted1, :], shifted_inputs).item() for pidx in range(prop_logits.shape[0])]
                 losses = [losses[i] + self.prefix_loss_weight * prefix_losses[i] for i in range(len(losses))]
+                if self.prefix_loss_weight > 0:
+                    shifted_inputs = input_ids[shifted2]
+                    prefix_losses = [nn.CrossEntropyLoss()(prop_logits[pidx, shifted1, :], shifted_inputs).item() for pidx in range(prop_logits.shape[0])]
+                    losses = [losses[i] + self.prefix_loss_weight * prefix_losses[i] for i in range(len(losses))]
+
                 # Choose next prompt
                 new_loss = min(losses)
                 min_idx = np.array(losses).argmin()
-                if prev_loss is None or new_loss < prev_loss:
+                if prev_loss is None or (not revert_on_loss_increase or new_loss < prev_loss): #Update input unless revert_on_loss_increase is True and new_loss is greater than prev_loss
                     input_ids = proposals[min_idx]
                     prev_loss = new_loss
         return self.tokenizer.decode(input_ids)
