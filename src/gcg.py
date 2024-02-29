@@ -83,7 +83,7 @@ class GreedyCoordinateGradient:
         self,
         model: AutoModelForCausalLM,
         tokenizer: AutoTokenizer,
-        n_proposals: int = 128,
+        n_proposals: int = 512,
         n_epochs: int = 500,
         n_top_indices: int = 256,
         prefix_loss_weight: float = 0.0
