@@ -183,6 +183,7 @@ def compute_posterior(
         posterior.append(get_logprob(v_sentences, model, stationary_dist))
     
     posterior = torch.cat(posterior)
+    posterior[torch.isnan(posterior)] = -100
     posterior = F.log_softmax(posterior, dim=-1)
     
     if indices is not None:
