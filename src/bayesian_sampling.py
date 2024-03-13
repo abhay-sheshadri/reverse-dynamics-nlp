@@ -105,18 +105,17 @@ class ReversalLMPriorBoN(ReversalLMPrior):
             proposal = self.sample_proposals(initial_inputs.shape[-1], initial_targets, temperature=temperature)
             proposals.append(proposal)
 
-        proposals = torch.stack(proposals)
-        pairs_batch = torch.flip(proposals, (1,))
+        proposals = torch.cat(proposals,0)
         _, predicted_suffix_loss_batch = forward_loss_batch(
             self.model,
-            pairs_batch,
+            proposals,
             self.tokenizer,
             prefix_len=initial_inputs.shape[1]
         )        
         if self.return_all:
             return [(self.tokenizer.decode(p),predicted_suffix_loss_batch[p]) for ind,p in enumerate(proposals)]
         else:
-            return self.tokenizer.decode(self.tokenizer, pairs_batch)[torch.argmin(predicted_suffix_loss_batch)], torch.min(predicted_suffix_loss_batch)    
+            return self.tokenizer.batch_decode(proposals)[torch.argmin(predicted_suffix_loss_batch)]#, torch.min(predicted_suffix_loss_batch)    
 
 
 class ReversalEmpiricalPrior:
@@ -298,7 +297,7 @@ def sample_reverse_dynamics(
         )
         splus = torch.cat((p.unsqueeze(0).unsqueeze(0), splus), dim=-1)
         
-    return splus, torch.stack(full_logits)
+    return splus, torch.stack(full_logits) # extended suffix, list[logits]
 
 
 def get_reverse_model_probs(reverse_model, input_ids, num_top_tokens=None, filter_prob=None):
@@ -358,7 +357,7 @@ def sample_reverse_dynamics_reverse_prior(
         )
         splus = torch.cat((p.unsqueeze(0).unsqueeze(0), splus), dim=-1)
         
-    return splus, torch.stack(full_logits)
+    return splus, torch.stack(full_logits) # extended suffix in forward token order as tensor, logits
 
 
 def compute_loss_reverse_dynamics(

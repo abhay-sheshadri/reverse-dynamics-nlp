@@ -37,11 +37,11 @@ class ReverseModelHFBeamSearch:
     ):
         # Tokenize prefix and suffix
         prefix_tokens = self.tokenizer.encode(initial_input)
-        suffix_tokens = self.tokenizer.encode(target_string)
+        suffix_tokens = reverse_tokenize(self.tokenizer,target_string)
         if self.return_beams or self.rerank_fwd:
             suffix_prefix_tensor = self.reverse_model.generate(
                 suffix_tokens,
-                max_new_tokens=prefix_tokens.shape[-1],
+                max_new_tokens=len(prefix_tokens),
                 num_beams=self.num_beams, 
                 do_sample=False,
                 num_return_sequences=self.num_beams,
@@ -52,13 +52,13 @@ class ReverseModelHFBeamSearch:
                     self.model,
                     prefix_suffix_tensor,
                     self.tokenizer,
-                    prefix_len=prefix_tokens.shape[0]
+                    prefix_len=len(prefix_tokens)
                 )
                 string_list = reverse_decode(self.tokenizer, suffix_prefix_tensor)
                 loss_list = list(predicted_suffix_loss_batch)
                 string_loss_pairs = list(zip(string_list, loss_list))
                 string_loss_pairs.sort(key=lambda x: x[1])
-                return string_loss_pairs
+                return string_loss_pairs[0][0]
             else:
                 return reverse_decode(self.tokenizer, suffix_prefix_tensor)
         else:

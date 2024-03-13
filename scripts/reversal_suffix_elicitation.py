@@ -26,8 +26,9 @@ def parse_arguments():
     parser.add_argument("--num_suffix_tokens", type=int, default=40)
     parser.add_argument("--reversal_num_tokens", type=int, default=10000)
     parser.add_argument("--vocab_batch_size", type=int, default=1000)
+    parser.add_argument("--BoN", type=int, default=2)#5
+    parser.add_argument("--beam_width", type=int, default=50)
     parser.add_argument("--filename_prefix", type=str, default="")
-    
     
     return parser.parse_args()
 
@@ -47,7 +48,7 @@ def main():
 
     tokenizer = AutoTokenizer.from_pretrained("afterless/reverse-pythia-160m")
     if "ON_GREENE" in os.environ.keys():
-        model = GPTNeoXForCausalLM.from_pretrained(f"EleutherAI/pythia-{args.model_size}-deduped",cache_dir="/scratch/adi224/hf/models/").cuda()
+        model = GPTNeoXForCausalLM.from_pretrained(f"EleutherAI/pythia-{args.model_size}-deduped",cache_dir="/scratch/jp6263/hf/models/").cuda()
     else:
         model = GPTNeoXForCausalLM.from_pretrained(f"EleutherAI/pythia-{args.model_size}-deduped").cuda()
 
@@ -67,7 +68,7 @@ def main():
         ps_pairs = list(pairs)
         dataset_name = "pile-10k"
     elif args.dataset == "pile_val":
-        data = load_dataset('json', data_files='reverse_llm_benchmarking/data/val.jsonl')
+        data = load_dataset('json', data_files='./data/val.jsonl')
         pairs = get_reverse_pair(data['train'], lambda x1,x2: start_chunk_hf(x1, x2, num_prefix_tokens=args.num_prefix_tokens, num_suffix_tokens = args.num_suffix_tokens), tokenizer)
         print(next(pairs))
         ps_pairs = list(pairs)
@@ -78,8 +79,9 @@ def main():
     
     optimizers = {
         "gcg": GreedyCoordinateGradient(model, tokenizer, prefix_loss_weight=0),
-        "reverse_model": ReverseModelHFBeamSearch(model, reverse_model, tokenizer),
-        "bayesian_reversal": ReversalLMPrior(model, reverse_model, tokenizer, batch_size=args.vocab_batch_size, num_top_tokens=args.reversal_num_tokens)
+        "reverse_model": ReverseModelHFBeamSearch(model, reverse_model, tokenizer, num_beams=args.beam_width),
+        "bayesian_reversal": ReversalLMPrior(model, reverse_model, tokenizer, batch_size=args.vocab_batch_size, num_top_tokens=args.reversal_num_tokens),
+        "bayesian_bon": ReversalLMPriorBoN(model, reverse_model, tokenizer, batch_size=args.vocab_batch_size, num_top_tokens=args.reversal_num_tokens, N=args.BoN,)
     }
     
     output_stats = {}
@@ -98,7 +100,7 @@ def main():
         if len(prefix_tokens) < args.num_prefix_tokens:
             continue
         # if args.dataset == "pile"
-        # if len(suffix_tokens) < args.num_suffix_tokens: continue
+        if len(suffix_tokens) < args.num_suffix_tokens: continue
         prefix_loss, suffix_loss = forward_loss(model, pair, tokenizer)
         
         output_stats[suffix] = {
@@ -137,7 +139,7 @@ def main():
         # print(f'Average tokenwise accuracy is {sum(tokenwise_acc)/len(tokenwise_acc)}')
         # print(f'Average loss is {sum(reversal_loss)/len(reversal_loss)}')
 
-        if p in [10,20,50]:
+        if p in [args.eval_size//10,args.eval_size//2]:
             with open(f'data/{args.filename_prefix}temp_{p}_reversal_results_{dataset_name}_{args.model_size}_{args.eval_size}sample.pkl', 'wb') as f:
                 pickle.dump(output_stats, f)
 

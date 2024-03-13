@@ -1,6 +1,3 @@
-import os
-dir_list = os.chdir('./../reverse-dynamics-nlp/')
-
 import torch
 from datasets import load_dataset
 from transformers import AutoTokenizer, GPTNeoXForCausalLM
@@ -10,11 +7,11 @@ import pickle
 
 
 tokenizer = AutoTokenizer.from_pretrained("afterless/reverse-pythia-160m")
-model = GPTNeoXForCausalLM.from_pretrained("EleutherAI/pythia-160m", cache_dir='/scratch/adi224/hf/models/').cuda()
+model = GPTNeoXForCausalLM.from_pretrained("EleutherAI/pythia-160m", cache_dir='/scratch/jp6263/hf/models/').cuda()
 tokenizer.eos_token = '<|endoftext|>'
 tokenizer.pad_token = tokenizer.eos_token
 
-data = load_dataset('allenai/real-toxicity-prompts', cache_dir='/scratch/adi224/hf/datasets/')
+data = load_dataset('allenai/real-toxicity-prompts', cache_dir='/scratch/jp6263/hf/datasets/')
 toxic_stuff = [(d['prompt']['text'],d['continuation']['text']) for d in data['train'] if (d['continuation']['severe_toxicity'] is not None and d['continuation']['severe_toxicity']>0.85)]
 print(toxic_stuff[0])
 # dataset = load_dataset("NeelNanda/pile-10k")
@@ -25,15 +22,15 @@ print(toxic_stuff[0])
 all_gcg_losses = []
 all_gcg_naturals = []
 all_gcg_prefixes = []
-eval_size = 100 #45 for 4.5ish hours using 6 weights
+eval_size = 100 #100 #45 for 4.5ish hours using 6 weights
 
-for prefix_weight in [0]+[0.02*3**i for i in range(4)]+[1]:
+for prefix_weight in [0]+[0.02*3**i for i in range(4)]+[1]: 
     tokenwise_acc = []
     gcg_loss = []
     gcg_naturals = []
     temp = None #None for default GCG with uniform sampling
     gcg_found_prefixes = []
-    gcg = GreedyCoordinateGradient(model, tokenizer, n_proposals=128, n_epochs=100, n_top_indices=128, prefix_loss_weight=prefix_weight)
+    gcg = GreedyCoordinateGradient(model, tokenizer, n_proposals=512, n_epochs=500, n_top_indices=256, prefix_loss_weight=prefix_weight)
 
     for p,pair in enumerate(tqdm(toxic_stuff)):
         if len(gcg_loss)==eval_size: break
@@ -64,5 +61,5 @@ for prefix_weight in [0]+[0.02*3**i for i in range(4)]+[1]:
     print(f'Average loss is {sum(gcg_loss)/len(gcg_loss)}')
 
 results_dict = {'gcg_losses':all_gcg_losses, 'gcg_naturals':all_gcg_naturals, 'gcg_prefixes':all_gcg_prefixes}
-with open('/home/adi224/reverse-dynamics-nlp/gcg_results_toxic_250sample.pkl', 'wb') as f:
+with open('/home/jp6263/reverse-dynamics-nlp/data/gcg_results_toxic_250sample.pkl', 'wb') as f:
     pickle.dump(results_dict, f)
