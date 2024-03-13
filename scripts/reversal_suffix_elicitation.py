@@ -26,7 +26,7 @@ def parse_arguments():
     parser.add_argument("--num_suffix_tokens", type=int, default=40)
     parser.add_argument("--reversal_num_tokens", type=int, default=10000)
     parser.add_argument("--vocab_batch_size", type=int, default=1000)
-    parser.add_argument("--BoN", type=int, default=2)#5
+    parser.add_argument("--BoN", type=int, default=5)#5
     parser.add_argument("--beam_width", type=int, default=50)
     parser.add_argument("--filename_prefix", type=str, default="")
     
