@@ -86,7 +86,9 @@ class GreedyCoordinateGradient:
         n_proposals: int = 128,
         n_epochs: int = 100,
         n_top_indices: int = 128,
-        prefix_loss_weight: float = 0.0
+        prefix_loss_weight: float = 0.0,
+        temperature: int = 0,
+        revert_on_loss_increase: bool = True,
     ):
 
         self.model = model
@@ -95,6 +97,8 @@ class GreedyCoordinateGradient:
         self.n_epochs = n_epochs
         self.n_top_indices = n_top_indices
         self.prefix_loss_weight = prefix_loss_weight
+        self.temperature = temperature
+        self.revert_on_loss_increase = revert_on_loss_increase
 
     def calculate_restricted_subset(
         self,
@@ -116,15 +120,14 @@ class GreedyCoordinateGradient:
         input_slice,
         target_slice,
         loss_slice,
-        temperature = None
     ):
         # Sample random proposals
         proposals = []
-        if temperature:
+        if self.temperature:
             logits = self.model(input_ids.view(1, *input_ids.shape)).logits
-            probs = SOFTMAX_FINAL(logits/temperature)
+            probs = SOFTMAX_FINAL(logits/self.temperature)
         for p in range(self.n_proposals):
-            if temperature:
+            if self.temperature:
                 token_pos = np.random.randint(input_slice.start, input_slice.stop)
                 rand_token = torch.multinomial(probs[0, token_pos, :], 1).item()
             else:
@@ -139,7 +142,6 @@ class GreedyCoordinateGradient:
         self,
         initial_input,
         target_string,
-        temperature=None,
     ):
         # Parse input strings into tokens
         initial_inputs = self.tokenizer.encode(initial_input, return_tensors="pt")[0].cuda()
@@ -156,7 +158,7 @@ class GreedyCoordinateGradient:
         for i in range(self.n_epochs):
             # Get proposals for next string
             top_indices = self.calculate_restricted_subset(input_ids, input_slice, target_slice, loss_slice)
-            proposals = self.sample_proposals(input_ids, top_indices, input_slice, target_slice, loss_slice, temperature=temperature)
+            proposals = self.sample_proposals(input_ids, top_indices, input_slice, target_slice, loss_slice)
             # Choose the proposal with the lowest loss
             with torch.no_grad():
                 prop_logits = self.model(proposals).logits
@@ -170,7 +172,8 @@ class GreedyCoordinateGradient:
                 # Choose next prompt
                 new_loss = min(losses)
                 min_idx = np.array(losses).argmin()
-                if prev_loss is None or new_loss < prev_loss:
+                #print(new_loss)
+                if prev_loss is None or new_loss < prev_loss or not self.revert_on_loss_increase:
                     input_ids = proposals[min_idx]
                     prev_loss = new_loss
         return self.tokenizer.decode(input_ids)
