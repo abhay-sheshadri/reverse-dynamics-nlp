@@ -116,7 +116,6 @@ class ReversalEmpiricalPrior:
         self,
         initial_input,
         target_string,
-        use_prefix_loss=True,
         temperature=0.7,
     ):
         # Parse input strings into tokens
