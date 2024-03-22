@@ -15,8 +15,9 @@ CROSSENT = nn.CrossEntropyLoss(reduction='none')
 
 
 def token_gradients(model, input_ids, input_slice, target_slice, loss_slice):
-
     """
+    Copied from (https://github.com/llm-attacks/llm-attacks/blob/main/llm_attacks/gcg/gcg_attack.py)
+
     Computes gradients of the loss with respect to the coordinates.
 
     Parameters
@@ -37,6 +38,7 @@ def token_gradients(model, input_ids, input_slice, target_slice, loss_slice):
     torch.Tensor
         The gradients of each token in the input_slice with respect to the loss.
     """
+
     embed_weights = list(model.modules())[2]
     assert type(embed_weights).__name__=='Embedding'
     embed_weights = embed_weights.weight
@@ -73,6 +75,35 @@ def token_gradients(model, input_ids, input_slice, target_slice, loss_slice):
     return one_hot.grad.clone()
 
 
+def get_nonascii_toks(tokenizer, device='cpu'):
+    """
+    Copied from (https://github.com/centerforaisafety/HarmBench/blob/main/baselines/gcg/gcg_utils.py#L31)
+    """
+
+    def is_ascii(s):
+        return s.isascii() and s.isprintable()
+
+    ascii_toks = []
+    for i in range(3, tokenizer.vocab_size):
+        if not is_ascii(tokenizer.decode([i])):
+            ascii_toks.append(i)
+    
+    if tokenizer.bos_token_id is not None:
+        ascii_toks.append(tokenizer.bos_token_id)
+    if tokenizer.eos_token_id is not None:
+        ascii_toks.append(tokenizer.eos_token_id)
+    if tokenizer.pad_token_id is not None:
+        ascii_toks.append(tokenizer.pad_token_id)
+    if tokenizer.unk_token_id is not None:
+        ascii_toks.append(tokenizer.unk_token_id)
+
+    if "Baichuan2" in tokenizer.name_or_path:
+        ascii_toks += [i for i in range(101, 1000)]
+    
+    return torch.tensor(ascii_toks, device=device)
+    
+
+
 class GreedyCoordinateGradient:
     """
     Implementation of Default GCG method, using the default
@@ -83,12 +114,13 @@ class GreedyCoordinateGradient:
         self,
         model: AutoModelForCausalLM,
         tokenizer: AutoTokenizer,
-        n_proposals: int = 128,
-        n_epochs: int = 100,
-        n_top_indices: int = 128,
+        n_proposals: int = 512,
+        n_epochs: int = 512,
+        n_top_indices: int = 256,
         prefix_loss_weight: float = 0.0,
         temperature: int = 0,
-        revert_on_loss_increase: bool = True,
+        revert_on_loss_increase: bool = False,
+        ascii_only: bool = True
     ):
 
         self.model = model
@@ -99,6 +131,8 @@ class GreedyCoordinateGradient:
         self.prefix_loss_weight = prefix_loss_weight
         self.temperature = temperature
         self.revert_on_loss_increase = revert_on_loss_increase
+        self.ascii_only = ascii_only
+        self.non_ascii_tokens = get_nonascii_toks(tokenizer)
 
     def calculate_restricted_subset(
         self,
@@ -109,6 +143,8 @@ class GreedyCoordinateGradient:
     ):
         # Find the subset of tokens that have the most impact on the likelihood of the target
         grad = token_gradients(self.model, input_ids, input_slice, target_slice, loss_slice)
+        if self.ascii_only:
+            grad[:, self.non_ascii_tokens] = grad.max() + 1
         top_indices = torch.topk(-grad, self.n_top_indices, dim=-1).indices
         top_indices = top_indices.detach().cpu().numpy()
         return top_indices
