@@ -68,7 +68,7 @@ def main():
         ps_pairs = list(pairs)
         dataset_name = "pile-10k"
     elif args.dataset == "pile_val":
-        data = load_dataset('json', data_files='data/val.jsonl')
+        data = load_dataset('json', data_files='~/reverse-dynamics-nlp/data/val.jsonl')
         pairs = get_reverse_pair(data['train'], lambda x1,x2: start_chunk_hf(x1, x2, num_prefix_tokens=args.num_prefix_tokens, num_suffix_tokens = args.num_suffix_tokens), tokenizer)
         print(next(pairs))
         ps_pairs = list(pairs)
