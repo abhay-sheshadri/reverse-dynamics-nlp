@@ -101,8 +101,8 @@ def main():
             prefix_tokens = prefix_tokens[-args.num_prefix_tokens:]
         if len(prefix_tokens) < args.num_prefix_tokens:
             continue
-        # if args.dataset == "pile"
-        if len(suffix_tokens) < args.num_suffix_tokens: continue
+        if len(suffix_tokens) < args.num_suffix_tokens and args.dataset != "allenai/real-toxicity-prompts": 
+            continue
         prefix_loss, suffix_loss = forward_loss(model, pair, tokenizer)
         
         output_stats[suffix] = {
