@@ -1,8 +1,6 @@
 #reversal
 import argparse
 import os
-dir_list = os.chdir('./../reverse-dynamics-nlp/')
-
 import torch
 from datasets import load_dataset
 from transformers import AutoTokenizer, GPTNeoXForCausalLM
@@ -28,7 +26,9 @@ def parse_arguments():
     parser.add_argument("--vocab_batch_size", type=int, default=1000)
     parser.add_argument("--BoN", type=int, default=5)#5
     parser.add_argument("--beam_width", type=int, default=50)
+    parser.add_argument("--lam", type=float, default=0.0)
     parser.add_argument("--filename_prefix", type=str, default="")
+    parser.add_argument("--optimizers", type=str, nargs='+', default=["gcg", "reverse_model", "bayesian_reversal", "bayesian_bon"])
     
     return parser.parse_args()
 
@@ -77,20 +77,22 @@ def main():
 
     temp = None #None for default reversal with uniform sampling
     
-    optimizers = {
-        "gcg": GreedyCoordinateGradient(model, tokenizer, prefix_loss_weight=0),
+    all_optimizers = {
+        "gcg": GreedyCoordinateGradient(model, tokenizer, prefix_loss_weight=args.lam,),
         "reverse_model": ReverseModelHFBeamSearch(model, reverse_model, tokenizer, num_beams=args.beam_width),
         "bayesian_reversal": ReversalLMPrior(model, reverse_model, tokenizer, batch_size=args.vocab_batch_size, num_top_tokens=args.reversal_num_tokens),
         "bayesian_bon": ReversalLMPriorBoN(model, reverse_model, tokenizer, batch_size=args.vocab_batch_size, num_top_tokens=args.reversal_num_tokens, N=args.BoN,)
     }
+    optimizers = {k: v for k, v in all_optimizers.items() if k in args.optimizers}
     
     output_stats = {}
     output_stats["parameters"] = {}
     args_dict = vars(args)
     output_stats["parameters"].update(args_dict)
     
-    for p, pair in enumerate(tqdm(ps_pairs[:args.eval_size])):
-        
+    for p, pair in enumerate(tqdm(ps_pairs)):
+        if len(output_stats)>=args.eval_size:
+            break
         prefix, suffix = pair
         prefix_tokens = tokenizer.encode(prefix)
         suffix_tokens = tokenizer.encode(suffix)
@@ -132,12 +134,6 @@ def main():
                 "time": dt
             }
             print("method: ", opt_name, "time: ", dt, "suffix_loss:", predicted_suffix_loss.item())
-
-        # all_reversal_losses.append(reversal_loss)
-        # all_reversal_naturals.append(reversal_naturals)
-        # all_reversal_prefixes.append(reversal_found_prefixes)
-        # print(f'Average tokenwise accuracy is {sum(tokenwise_acc)/len(tokenwise_acc)}')
-        # print(f'Average loss is {sum(reversal_loss)/len(reversal_loss)}')
 
         if p in [args.eval_size//10,args.eval_size//2]:
             with open(f'data/{args.filename_prefix}temp_{p}_reversal_results_{dataset_name}_{args.model_size}_{args.eval_size}sample.pkl', 'wb') as f:
