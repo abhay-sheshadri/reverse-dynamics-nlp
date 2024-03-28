@@ -29,6 +29,7 @@ def parse_arguments():
     parser.add_argument("--lam", type=float, default=0.0)
     parser.add_argument("--filename_prefix", type=str, default="")
     parser.add_argument("--optimizers", type=str, nargs='+', default=["gcg", "reverse_model", "bayesian_reversal", "bayesian_bon"])
+    parser.add_argument("--write_dir", type=str, default="data")
     
     return parser.parse_args()
 
@@ -136,10 +137,10 @@ def main():
             print("method: ", opt_name, "time: ", dt, "suffix_loss:", predicted_suffix_loss.item())
 
         if p in [args.eval_size//10,args.eval_size//2]:
-            with open(f'data/{args.filename_prefix}temp_{p}_reversal_results_{dataset_name}_{args.model_size}_{args.eval_size}sample.pkl', 'wb') as f:
+            with open(args.write_dir+f'/{args.filename_prefix}temp_{p}_reversal_results_{dataset_name}_{args.model_size}_{args.eval_size}sample.pkl', 'wb') as f:
                 pickle.dump(output_stats, f)
 
-    with open(f'data/{args.filename_prefix}reversal_results_{dataset_name}_{args.model_size}_{args.eval_size}sample.pkl', 'wb') as f:
+    with open(args.write_dir+f'/{args.filename_prefix}reversal_results_{dataset_name}_{args.model_size}_{args.eval_size}sample.pkl', 'wb') as f:
         pickle.dump(output_stats, f)
         
 if __name__ == "__main__":
